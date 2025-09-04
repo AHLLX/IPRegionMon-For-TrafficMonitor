@@ -16,7 +16,8 @@
 
 - 设置对话框：
   
-  <img width="1050" height="886" alt="image" src="https://github.com/user-attachments/assets/71fc62ff-fa21-412e-b294-59914091cae5" />
+<img width="735" height="618" alt="image" src="https://github.com/user-attachments/assets/d331d9d5-6193-404c-9162-d46c8ffdc852" />
+
 
 - 悬浮提示：
   
