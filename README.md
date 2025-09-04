@@ -8,8 +8,6 @@
 - 支持版本：TrafficMonitor 插件 API v2+（兼容更高版本）
 
 ## 预览
-> 将下列占位图替换为你的实际截图，路径可保持不变。
-
 - 任务栏展示：
   
 <img width="600" height="57" alt="image" src="https://github.com/user-attachments/assets/50a8f5fc-4a52-4051-8378-bc267fb93dec" />
