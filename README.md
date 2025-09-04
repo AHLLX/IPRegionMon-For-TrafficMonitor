@@ -99,5 +99,6 @@
 
 
 <img width="430" height="589" alt="image" src="https://github.com/user-attachments/assets/56df8284-bd80-46bd-a9e1-f27405ef3640" />
+
 ## 许可证
 - 本插件以 MIT 协议发布。作者：HiTech_NinJa。
