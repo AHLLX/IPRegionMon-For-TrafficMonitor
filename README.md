@@ -1,9 +1,6 @@
 # IPRegionMon-For-TrafficMonitor
 一个用于 TrafficMonitor 的插件，显示当前公网 IP 与地区信息，支持代理出口对比与自定义测延迟目标。
 
-# IPRegionMon — IP 地区监控插件
-一个用于 TrafficMonitor 的插件，显示当前公网 IP 与地区信息，支持代理出口对比与自定义测延迟目标。
-
 - 插件主类：`CIPRegionMon`
 - 输出项目：
   - 直：直连出口 IP/地区
@@ -17,17 +14,13 @@
   
 <img width="600" height="57" alt="image" src="https://github.com/user-attachments/assets/50a8f5fc-4a52-4051-8378-bc267fb93dec" />
 
-
 - 设置对话框：
   
   <img width="1050" height="886" alt="image" src="https://github.com/user-attachments/assets/71fc62ff-fa21-412e-b294-59914091cae5" />
 
-
 - 悬浮提示：
   
 <img width="530" height="358" alt="image" src="https://github.com/user-attachments/assets/448c05ab-a06b-4a1d-ae99-ac88b2728fb6" />
-
-
 
 ## 功能特性
 - 公网 IP 信息：分别获取直连与代理出口的 IP、国家/地区/城市、ISP。
@@ -63,6 +56,31 @@
 - 兼容性：Windows 10/11；仅依赖 WinHTTP（系统组件）。
 - 隐私：插件不收集任何用户隐私信息。
 
+## 二次开发（VS2022 + MFC）
+- 先决条件：
+  - Windows 10/11，Visual Studio 2022（17.x）。
+  - 安装“使用 C++ 的桌面开发”工作负载，并勾选“适用于 x64 的 MFC”。
+  - Windows 10 SDK、MSVC v143 工具集。
+- 打开工程：
+  - 直接打开解决方案 `TrafficMonitor.sln`（推荐），在解决方案资源管理器中找到项目 `PluginDemo`，其下包含本插件源文件。
+  - 或使用“文件 > 打开 > 文件夹”选择仓库根目录。
+- 构建与输出：
+  - 选择 `Release | x64` 配置，生成项目。
+  - 将生成的 `IPRegionMon.dll` 复制到 TrafficMonitor 可执行文件同级的 `plugins` 目录。
+  - 可在项目“生成事件 > 生成后事件”添加复制命令：
+    - `xcopy /y "$(TargetPath)" "$(SolutionDir)plugins\"`
+- 调试插件：
+  - 在项目 `PluginDemo` 属性 > 调试：
+    - 启动外部程序：选择 `TrafficMonitor.exe`。
+    - 工作目录：`TrafficMonitor.exe` 所在目录。
+  - 按 F5 启动，主程序会自动加载插件，打断点即可调试。
+- 入口/关键文件：
+  - 插件入口：`IPRegionMon.h/cpp`（类 `CIPRegionMon`，导出 `TMPluginGetInstance`）。
+  - 设置对话框：`OptionsDlg.*`
+  - 数据与配置：`DataManager.*`
+  - 任务栏显示项：`CustomDrawItem.*`
+  - 资源：`IPRegionMon.rc`、`resource.h`
+
 ## 目录结构（详细）
 ```
 PluginDemo/
@@ -70,7 +88,7 @@ PluginDemo/
 ├─ DataManager.h / DataManager.cpp     # 数据获取、INI 配置、悬浮提示与延迟格式化
 ├─ OptionsDlg.h / OptionsDlg.cpp       # 插件设置对话框（MFC，自适应布局、异步刷新）
 ├─ CustomDrawItem.h / CustomDrawItem.cpp # 直/代两个显示项（名称、值、示例）
-├─ PluginDemo.rc                       # 资源与字符串表
+├─ IPRegionMon.rc                      # 资源与字符串表
 ├─ resource.h                          # 资源 ID 定义
 ├─ pch.h / pch.cpp, framework.h        # 预编译头与框架头
 └─ README.md                           # 本说明文档
