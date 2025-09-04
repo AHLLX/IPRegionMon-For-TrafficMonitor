@@ -1,0 +1,272 @@
+#include "resource.h"
+// Microsoft Visual C++ generated resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include <windows.h>
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Simplified Chinese resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+#pragma code_page(65001)
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include \"winres.h\"\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_OPTIONS_DIALOG DIALOGEX 0, 0, 380, 280
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "IP 监控设置"
+FONT 9, "微软雅黑", 400, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "确定",IDOK,274,258,45,14
+    PUSHBUTTON      "取消",IDCANCEL,329,258,45,14
+
+    // 分区：代理
+    GROUPBOX        "代理",IDC_GRP_PROXY,7,7,366,56
+    CONTROL         "使用代理",IDC_USE_PROXY_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,19,70,10
+    LTEXT           "代理地址",IDC_PROXY_LABEL,15,37,40,10
+    EDITTEXT        IDC_PROXY_EDIT,60,35,305,12,ES_AUTOHSCROLL
+
+    // 分区：刷新 + 延迟（移除 API 分区）
+    GROUPBOX        "刷新/延迟",IDC_GRP_LATENCY,7,67,366,172
+    LTEXT           "刷新间隔(秒)",IDC_REFRESH_INTERVAL_LABEL,15,81,60,10
+    EDITTEXT        IDC_REFRESH_INTERVAL_EDIT,80,79,40,12,ES_NUMBER | ES_AUTOHSCROLL
+    PUSHBUTTON      "立即刷新",IDC_REFRESH_NOW_BUTTON,274,78,60,14
+    PUSHBUTTON      "+",IDC_LATENCY_ADD_BUTTON,339,78,14,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_OPTIONS_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 353
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 258
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_OPTIONS_DIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName", "By HiTech_NinJa"
+            VALUE "FileDescription", "IP Region Monitor Plugin for TrafficMonitor"
+            VALUE "FileVersion", "1.0.0.1"
+            VALUE "InternalName", "IPRegionMon.dll"
+            VALUE "LegalCopyright", "Copyright (C) 2025 By HiTech_NinJa"
+            VALUE "OriginalFilename", "IPRegionMon.dll"
+            VALUE "ProductName", "IPRegionMon"
+            VALUE "ProductVersion", "1.0.0.1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE
+BEGIN
+    IDS_PLUGIN_NAME         "IP 地区监控插件"
+    IDS_PLUGIN_DESCRIPTION  "显示当前公网 IP 及地区信息，支持代理与 API 设置。"
+    IDS_CUSTOM_DRAW_ITEM    "IP"
+    IDS_DIRECT_ITEM_NAME    "IP(直连)"
+    IDS_PROXY_ITEM_NAME     "IP(代理)"
+END
+
+#endif    // 简体中文 resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_OPTIONS_DIALOG DIALOGEX 0, 0, 260, 203
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "IP Monitor Settings"
+FONT 9, "Segoe UI", 400, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,154,182,45,14
+    PUSHBUTTON      "Cancel",IDCANCEL,209,182,45,14
+
+    // Split sections: Proxy
+    GROUPBOX        "Proxy",IDC_GRP_PROXY,7,7,246,46
+    CONTROL         "Use proxy",IDC_USE_PROXY_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,19,60,10
+    LTEXT           "Proxy",IDC_PROXY_LABEL,15,35,30,10
+    EDITTEXT        IDC_PROXY_EDIT,60,33,185,12,ES_AUTOHSCROLL
+
+    // Refresh + Latency
+    GROUPBOX        "Refresh/Latency",IDC_GRP_LATENCY,7,67,246,126
+    LTEXT           "Refresh interval(s)",IDC_REFRESH_INTERVAL_LABEL,15,81,80,10
+    EDITTEXT        IDC_REFRESH_INTERVAL_EDIT,100,79,40,12,ES_NUMBER | ES_AUTOHSCROLL
+    PUSHBUTTON      "Refresh now",IDC_REFRESH_NOW_BUTTON,150,78,95,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_OPTIONS_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 253
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 196
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_OPTIONS_DIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE
+BEGIN
+    IDS_PLUGIN_NAME         "IP Region Monitor"
+    IDS_PLUGIN_DESCRIPTION  "Show current public IP and region, with proxy and API settings."
+    IDS_CUSTOM_DRAW_ITEM    "IP"
+    IDS_DIRECT_ITEM_NAME    "IP (Direct)"
+    IDS_PROXY_ITEM_NAME     "IP (Proxy)"
+END
+
+#endif    // English resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
