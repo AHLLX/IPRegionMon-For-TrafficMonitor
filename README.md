@@ -81,8 +81,8 @@
   - 资源：`IPRegionMon.rc`、`resource.h`
 
 
-## 目录结构（详细）
 <img width="430" height="589" alt="image" src="https://github.com/user-attachments/assets/56df8284-bd80-46bd-a9e1-f27405ef3640" />
+## 目录结构（详细）
 ```
 ./
 ├─ CustomDrawItem.cpp / CustomDrawItem.h
