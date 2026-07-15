@@ -55,8 +55,11 @@
 #define IDC_LATENCY_DEL_BUTTON          1143
 #define IDC_STATUS_INFO_EDIT            1144
 
-// 弹出式延迟编辑对话框
+// 弹出式延迟编辑对话框与页签对话框
 #define IDD_LATENCY_EDIT_DIALOG         105
+#define IDD_TAB_PROXY_API               106
+#define IDD_TAB_LATENCY_LIST            107
+#define IDD_TAB_STATUS_INFO             108
 #define IDC_LATENCY_NAME_EDIT           1151
 #define IDC_LATENCY_URL_EDIT            1152
 

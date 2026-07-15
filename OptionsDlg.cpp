@@ -55,12 +55,110 @@ private:
 };
 
 // ==========================================
+// CPageProxyApi: 代理与 API 常规设置子页面
+// ==========================================
+BEGIN_MESSAGE_MAP(CPageProxyApi, CDialog)
+    ON_BN_CLICKED(IDC_REFRESH_NOW_BUTTON, &CPageProxyApi::OnBnClickedRefreshNow)
+END_MESSAGE_MAP()
+
+CPageProxyApi::CPageProxyApi(COptionsDlg* pParent)
+    : CDialog(IDD_TAB_PROXY_API, (CWnd*)pParent), m_pParent(pParent)
+{
+}
+
+BOOL CPageProxyApi::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    if (CFont* f = m_pParent->GetFont())
+    {
+        const int ids[] = { IDC_USE_PROXY_CHECK, IDC_GRP_PROXY, IDC_PROXY_LABEL, IDC_PROXY_EDIT,
+                            IDC_GRP_LATENCY, IDC_API_DOMESTIC_LABEL, IDC_API_DOMESTIC_EDIT,
+                            IDC_API_FOREIGN_LABEL, IDC_API_FOREIGN_EDIT,
+                            IDC_REFRESH_INTERVAL_LABEL, IDC_REFRESH_INTERVAL_EDIT, IDC_REFRESH_NOW_BUTTON,
+                            IDC_STATUS_STATIC };
+        for (int id : ids)
+        {
+            if (auto p = GetDlgItem(id))
+                p->SetFont(f);
+        }
+    }
+    return TRUE;
+}
+
+void CPageProxyApi::OnBnClickedRefreshNow()
+{
+    m_pParent->OnBnClickedRefreshNow();
+}
+
+// ==========================================
+// CPageLatencyList: 延迟列表测试目标子页面
+// ==========================================
+BEGIN_MESSAGE_MAP(CPageLatencyList, CDialog)
+    ON_BN_CLICKED(IDC_LATENCY_ADD_BUTTON, &CPageLatencyList::OnBnClickedLatencyAdd)
+    ON_BN_CLICKED(IDC_LATENCY_EDIT_BUTTON, &CPageLatencyList::OnBnClickedLatencyEdit)
+    ON_BN_CLICKED(IDC_LATENCY_DEL_BUTTON, &CPageLatencyList::OnBnClickedLatencyDel)
+END_MESSAGE_MAP()
+
+CPageLatencyList::CPageLatencyList(COptionsDlg* pParent)
+    : CDialog(IDD_TAB_LATENCY_LIST, (CWnd*)pParent), m_pParent(pParent)
+{
+}
+
+BOOL CPageLatencyList::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    m_latencyList.SubclassDlgItem(IDC_LATENCY_LIST, this);
+    m_latencyList.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+    m_latencyList.InsertColumn(0, L"目标名称", LVCFMT_LEFT, 100);
+    m_latencyList.InsertColumn(1, L"测试地址/URL", LVCFMT_LEFT, 210);
+
+    if (CFont* f = m_pParent->GetFont())
+    {
+        const int ids[] = { IDC_LATENCY_LIST, IDC_LATENCY_ADD_BUTTON, IDC_LATENCY_EDIT_BUTTON, IDC_LATENCY_DEL_BUTTON };
+        for (int id : ids)
+        {
+            if (auto p = GetDlgItem(id))
+                p->SetFont(f);
+        }
+    }
+    return TRUE;
+}
+
+void CPageLatencyList::OnBnClickedLatencyAdd() { m_pParent->OnBnClickedLatencyAdd(); }
+void CPageLatencyList::OnBnClickedLatencyEdit() { m_pParent->OnBnClickedLatencyEdit(); }
+void CPageLatencyList::OnBnClickedLatencyDel() { m_pParent->OnBnClickedLatencyDel(); }
+
+// ==========================================
+// CPageStatusInfo: 当前状态子页面
+// ==========================================
+BEGIN_MESSAGE_MAP(CPageStatusInfo, CDialog)
+END_MESSAGE_MAP()
+
+CPageStatusInfo::CPageStatusInfo(COptionsDlg* pParent)
+    : CDialog(IDD_TAB_STATUS_INFO, (CWnd*)pParent), m_pParent(pParent)
+{
+}
+
+BOOL CPageStatusInfo::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    if (CFont* f = m_pParent->GetFont())
+    {
+        if (auto p = GetDlgItem(IDC_STATUS_INFO_EDIT))
+            p->SetFont(f);
+    }
+    return TRUE;
+}
+
+
+// ==========================================
 // COptionsDlg: 配置主对话框类实现
 // ==========================================
 IMPLEMENT_DYNAMIC(COptionsDlg, CDialog)
 
 COptionsDlg::COptionsDlg(CWnd* pParent /*=nullptr*/)
-	: CDialog(IDD_OPTIONS_DIALOG, pParent)
+	: CDialog(IDD_OPTIONS_DIALOG, pParent),
+      m_page1(this), m_page2(this), m_page3(this)
 {
 }
 
@@ -75,10 +173,6 @@ void COptionsDlg::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionsDlg, CDialog)
     ON_BN_CLICKED(IDC_SHOW_SECOND_CHECK, &COptionsDlg::OnBnClickedShowSecondCheck)
-    ON_BN_CLICKED(IDC_REFRESH_NOW_BUTTON, &COptionsDlg::OnBnClickedRefreshNow)
-    ON_BN_CLICKED(IDC_LATENCY_ADD_BUTTON, &COptionsDlg::OnBnClickedLatencyAdd)
-    ON_BN_CLICKED(IDC_LATENCY_EDIT_BUTTON, &COptionsDlg::OnBnClickedLatencyEdit)
-    ON_BN_CLICKED(IDC_LATENCY_DEL_BUTTON, &COptionsDlg::OnBnClickedLatencyDel)
     ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_MAIN, &COptionsDlg::OnTcnSelchangeTabMain)
     ON_WM_SIZE()
     ON_WM_GETMINMAXINFO()
@@ -89,21 +183,12 @@ BOOL COptionsDlg::OnInitDialog()
 {
     CDialog::OnInitDialog();
 
-    // 1. 系统默认字体统一应用到所有控件（美化排版）
+    // 1. 系统默认字体统一应用到主按钮
     if (CFont* f = GetFont())
     {
-        const int ids[] = { IDOK, IDCANCEL, IDC_TAB_MAIN, IDC_USE_PROXY_CHECK, IDC_PROXY_LABEL, IDC_PROXY_EDIT,
-                            IDC_API_DOMESTIC_LABEL, IDC_API_DOMESTIC_EDIT,
-                            IDC_API_FOREIGN_LABEL, IDC_API_FOREIGN_EDIT,
-                            IDC_REFRESH_INTERVAL_LABEL, IDC_REFRESH_INTERVAL_EDIT, IDC_REFRESH_NOW_BUTTON,
-                            IDC_STATUS_STATIC, IDC_GRP_PROXY, IDC_GRP_LATENCY, 
-                            IDC_LATENCY_LIST, IDC_LATENCY_ADD_BUTTON, IDC_LATENCY_EDIT_BUTTON, IDC_LATENCY_DEL_BUTTON,
-                            IDC_STATUS_INFO_EDIT };
-        for (int id : ids)
-        {
-            if (auto p = GetDlgItem(id))
-                p->SetFont(f);
-        }
+        if (auto p = GetDlgItem(IDOK)) p->SetFont(f);
+        if (auto p = GetDlgItem(IDCANCEL)) p->SetFont(f);
+        if (auto p = GetDlgItem(IDC_TAB_MAIN)) p->SetFont(f);
     }
 
     // 2. 绑定 Tab 控件及插入页签
@@ -112,34 +197,33 @@ BOOL COptionsDlg::OnInitDialog()
     m_tabCtrl.InsertItem(1, L"延迟目标");
     m_tabCtrl.InsertItem(2, L"当前状态");
 
-    // 3. 绑定并初始化延迟列表 (CListCtrl)
-    m_latencyList.SubclassDlgItem(IDC_LATENCY_LIST, this);
-    m_latencyList.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-    m_latencyList.InsertColumn(0, L"目标名称", LVCFMT_LEFT, 100);
-    m_latencyList.InsertColumn(1, L"测试地址/URL", LVCFMT_LEFT, 230);
+    // 3. 创建子页面页签窗口
+    m_page1.Create(IDD_TAB_PROXY_API, this);
+    m_page2.Create(IDD_TAB_LATENCY_LIST, this);
+    m_page3.Create(IDD_TAB_STATUS_INFO, this);
 
-    // 填充延迟列表数据
-    for (int i = 0; i < (int)m_data.latency_targets.size(); ++i)
-    {
-        int idx = m_latencyList.InsertItem(i, m_data.latency_targets[i].name.c_str());
-        m_latencyList.SetItemText(idx, 1, m_data.latency_targets[i].url.c_str());
-    }
-
-    // 4. 加载常规设置参数
-    CheckDlgButton(IDC_SHOW_SECOND_CHECK, m_data.show_second);
-    CheckDlgButton(IDC_USE_PROXY_CHECK, m_data.use_proxy ? BST_CHECKED : BST_UNCHECKED);
-    SetDlgItemTextW(IDC_PROXY_EDIT, m_data.proxy_address.c_str());
-    SetDlgItemTextW(IDC_API_DOMESTIC_EDIT, m_data.api_domestic_url.c_str());
-    SetDlgItemTextW(IDC_API_FOREIGN_EDIT, m_data.api_foreign_url.c_str());
+    // 4. 填充子页面 1 的常规参数
+    m_page1.CheckDlgButton(IDC_USE_PROXY_CHECK, m_data.use_proxy ? BST_CHECKED : BST_UNCHECKED);
+    m_page1.SetDlgItemTextW(IDC_PROXY_EDIT, m_data.proxy_address.c_str());
+    m_page1.SetDlgItemTextW(IDC_API_DOMESTIC_EDIT, m_data.api_domestic_url.c_str());
+    m_page1.SetDlgItemTextW(IDC_API_FOREIGN_EDIT, m_data.api_foreign_url.c_str());
 
     wchar_t buf[32]{};
     swprintf_s(buf, L"%d", m_data.refresh_interval_sec);
-    SetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf);
+    m_page1.SetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf);
 
-    // 5. 显示第一个 Tab 页并排版
+    // 5. 填充子页面 2 的延迟目标列表 (CListCtrl)
+    for (int i = 0; i < (int)m_data.latency_targets.size(); ++i)
+    {
+        int idx = m_page2.m_latencyList.InsertItem(i, m_data.latency_targets[i].name.c_str());
+        m_page2.m_latencyList.SetItemText(idx, 1, m_data.latency_targets[i].url.c_str());
+    }
+
+    // 6. 显示初始状态与默认页签
+    m_page1.SetDlgItemTextW(IDC_STATUS_STATIC, g_data.GetLastUpdateStatusString().c_str());
+    
     ShowTabControls(0);
     CRect rc; GetWindowRect(&rc); m_minTrackSize = rc.Size();
-    SetDlgItemTextW(IDC_STATUS_STATIC, g_data.GetLastUpdateStatusString().c_str());
     
     m_layoutInitialized = true;
     LayoutAll();
@@ -150,31 +234,9 @@ BOOL COptionsDlg::OnInitDialog()
 
 void COptionsDlg::ShowTabControls(int tab)
 {
-    const int tab0_ids[] = {
-        IDC_GRP_PROXY, IDC_USE_PROXY_CHECK, IDC_PROXY_LABEL, IDC_PROXY_EDIT,
-        IDC_GRP_LATENCY, IDC_API_DOMESTIC_LABEL, IDC_API_DOMESTIC_EDIT,
-        IDC_API_FOREIGN_LABEL, IDC_API_FOREIGN_EDIT,
-        IDC_REFRESH_INTERVAL_LABEL, IDC_REFRESH_INTERVAL_EDIT, IDC_REFRESH_NOW_BUTTON,
-        IDC_STATUS_STATIC
-    };
-    const int tab1_ids[] = {
-        IDC_LATENCY_LIST, IDC_LATENCY_ADD_BUTTON, IDC_LATENCY_EDIT_BUTTON, IDC_LATENCY_DEL_BUTTON
-    };
-    const int tab2_ids[] = {
-        IDC_STATUS_INFO_EDIT
-    };
-
-    auto ShowGroup = [&](const int* ids, int count, bool show) {
-        for (int i = 0; i < count; ++i)
-        {
-            if (auto p = GetDlgItem(ids[i]))
-                p->ShowWindow(show ? SW_SHOW : SW_HIDE);
-        }
-    };
-
-    ShowGroup(tab0_ids, _countof(tab0_ids), tab == 0);
-    ShowGroup(tab1_ids, _countof(tab1_ids), tab == 1);
-    ShowGroup(tab2_ids, _countof(tab2_ids), tab == 2);
+    if (::IsWindow(m_page1.GetSafeHwnd())) m_page1.ShowWindow(tab == 0 ? SW_SHOW : SW_HIDE);
+    if (::IsWindow(m_page2.GetSafeHwnd())) m_page2.ShowWindow(tab == 1 ? SW_SHOW : SW_HIDE);
+    if (::IsWindow(m_page3.GetSafeHwnd())) m_page3.ShowWindow(tab == 2 ? SW_SHOW : SW_HIDE);
 }
 
 void COptionsDlg::OnTcnSelchangeTabMain(NMHDR *pNMHDR, LRESULT *pResult)
@@ -190,57 +252,69 @@ void COptionsDlg::LayoutAll()
 
     CRect rcCli; GetClientRect(&rcCli);
 
-    // 1. 排版 Tab 控件主容器
+    // 1. 调整 Tab 控件大小填满主客户区
     CRect tabRect(7, 7, rcCli.right - 7, rcCli.bottom - 36);
     if (::IsWindow(m_tabCtrl.GetSafeHwnd()))
         m_tabCtrl.MoveWindow(tabRect);
 
-    auto MoveCtrl = [&](int id, const CRect& r){ if (auto p = GetDlgItem(id)) p->MoveWindow(r); };
-
-    // 2. 底部的 确定/取消 按钮对齐
+    // 确定与取消按钮定位
     int btnBottom = rcCli.bottom - 10;
     CRect canR; GetDlgItem(IDCANCEL)->GetWindowRect(&canR); ScreenToClient(&canR);
     CRect okR; GetDlgItem(IDOK)->GetWindowRect(&okR); ScreenToClient(&okR);
-    MoveCtrl(IDCANCEL, CRect(rcCli.right - 10 - canR.Width(), btnBottom - canR.Height(), rcCli.right - 10, btnBottom));
-    MoveCtrl(IDOK,     CRect(rcCli.right - 10 - canR.Width() - 8 - okR.Width(), btnBottom - okR.Height(), rcCli.right - 10 - canR.Width() - 8, btnBottom));
+    if (auto p = GetDlgItem(IDCANCEL)) p->MoveWindow(CRect(rcCli.right - 10 - canR.Width(), btnBottom - canR.Height(), rcCli.right - 10, btnBottom));
+    if (auto p = GetDlgItem(IDOK))     p->MoveWindow(CRect(rcCli.right - 10 - canR.Width() - 8 - okR.Width(), btnBottom - okR.Height(), rcCli.right - 10 - canR.Width() - 8, btnBottom));
 
-    // 计算 Tab 内部可用 client 宽度
-    int innerWidth = tabRect.Width() - 16;
-    if (innerWidth < 100) innerWidth = 100;
+    // 2. 获取 Tab 内部可用子页面视区
+    CRect dispRect = tabRect;
+    m_tabCtrl.AdjustRect(FALSE, &dispRect);
 
-    // =====================================
-    // Tab 0: 常规设置面板排版 (完全基于 Tab 坐标计算，无漂移)
-    // =====================================
-    MoveCtrl(IDC_GRP_PROXY, CRect(tabRect.left + 8, tabRect.top + 22, tabRect.left + 8 + innerWidth, tabRect.top + 22 + 56));
-    MoveCtrl(IDC_GRP_LATENCY, CRect(tabRect.left + 8, tabRect.top + 84, tabRect.left + 8 + innerWidth, tabRect.top + 84 + 56));
+    // 3. 对齐子页面视口位置
+    if (::IsWindow(m_page1.GetSafeHwnd())) m_page1.MoveWindow(dispRect);
+    if (::IsWindow(m_page2.GetSafeHwnd())) m_page2.MoveWindow(dispRect);
+    if (::IsWindow(m_page3.GetSafeHwnd())) m_page3.MoveWindow(dispRect);
 
-    MoveCtrl(IDC_USE_PROXY_CHECK, CRect(tabRect.left + 16, tabRect.top + 34, tabRect.left + 16 + 100, tabRect.top + 34 + 10));
-    MoveCtrl(IDC_PROXY_LABEL, CRect(tabRect.left + 16, tabRect.top + 52, tabRect.left + 16 + 50, tabRect.top + 52 + 10));
-    MoveCtrl(IDC_PROXY_EDIT, CRect(tabRect.left + 70, tabRect.top + 50, tabRect.left + 8 + innerWidth - 8, tabRect.top + 50 + 12));
+    // 4. 常规页签内部控件自适应缩放（w = 子视窗宽度）
+    if (::IsWindow(m_page1.GetSafeHwnd()))
+    {
+        CRect rcP1; m_page1.GetClientRect(&rcP1);
+        int w = rcP1.Width() - 14;
+        if (w < 100) w = 100;
+        
+        if (auto p = m_page1.GetDlgItem(IDC_GRP_PROXY)) p->SetWindowPos(nullptr, 0, 0, w, 45, SWP_NOMOVE | SWP_NOZORDER);
+        if (auto p = m_page1.GetDlgItem(IDC_GRP_LATENCY)) p->SetWindowPos(nullptr, 0, 0, w, 60, SWP_NOMOVE | SWP_NOZORDER);
+        
+        int editW = w - 55;
+        if (editW < 50) editW = 50;
+        if (auto p = m_page1.GetDlgItem(IDC_PROXY_EDIT)) p->SetWindowPos(nullptr, 0, 0, editW, 12, SWP_NOMOVE | SWP_NOZORDER);
+        if (auto p = m_page1.GetDlgItem(IDC_API_DOMESTIC_EDIT)) p->SetWindowPos(nullptr, 0, 0, editW - 5, 12, SWP_NOMOVE | SWP_NOZORDER);
+        if (auto p = m_page1.GetDlgItem(IDC_API_FOREIGN_EDIT)) p->SetWindowPos(nullptr, 0, 0, editW - 5, 12, SWP_NOMOVE | SWP_NOZORDER);
 
-    MoveCtrl(IDC_API_DOMESTIC_LABEL, CRect(tabRect.left + 16, tabRect.top + 96, tabRect.left + 16 + 50, tabRect.top + 96 + 10));
-    MoveCtrl(IDC_API_DOMESTIC_EDIT, CRect(tabRect.left + 70, tabRect.top + 94, tabRect.left + 8 + innerWidth - 8, tabRect.top + 94 + 12));
-    MoveCtrl(IDC_API_FOREIGN_LABEL, CRect(tabRect.left + 16, tabRect.top + 114, tabRect.left + 16 + 50, tabRect.top + 114 + 10));
-    MoveCtrl(IDC_API_FOREIGN_EDIT, CRect(tabRect.left + 70, tabRect.top + 112, tabRect.left + 8 + innerWidth - 8, tabRect.top + 112 + 12));
+        if (auto p = m_page1.GetDlgItem(IDC_REFRESH_NOW_BUTTON)) p->MoveWindow(CRect(rcP1.right - 7 - 70, rcP1.top + 144, rcP1.right - 7, rcP1.top + 144 + 14));
+    }
 
-    MoveCtrl(IDC_REFRESH_INTERVAL_LABEL, CRect(tabRect.left + 16, tabRect.top + 152, tabRect.left + 16 + 70, tabRect.top + 152 + 10));
-    MoveCtrl(IDC_REFRESH_INTERVAL_EDIT, CRect(tabRect.left + 90, tabRect.top + 150, tabRect.left + 90 + 40, tabRect.top + 150 + 12));
-    MoveCtrl(IDC_REFRESH_NOW_BUTTON, CRect(tabRect.left + 8 + innerWidth - 68, tabRect.top + 149, tabRect.left + 8 + innerWidth, tabRect.top + 149 + 14));
-    MoveCtrl(IDC_STATUS_STATIC, CRect(tabRect.left + 16, tabRect.top + 178, tabRect.left + 8 + innerWidth - 8, tabRect.top + 178 + 10));
+    // 5. 延迟列表页签控件自适应缩放
+    if (::IsWindow(m_page2.GetSafeHwnd()))
+    {
+        CRect rcP2; m_page2.GetClientRect(&rcP2);
+        
+        // 列表控件铺满上方空间
+        CRect listRect(rcP2.left + 7, rcP2.top + 7, rcP2.right - 7, rcP2.bottom - 28);
+        if (auto p = m_page2.GetDlgItem(IDC_LATENCY_LIST)) p->MoveWindow(listRect);
 
-    // =====================================
-    // Tab 1: 延迟目标面板排版 (CListCtrl 自动拉伸)
-    // =====================================
-    MoveCtrl(IDC_LATENCY_LIST, CRect(tabRect.left + 8, tabRect.top + 22, tabRect.left + 8 + innerWidth, tabRect.top + 166));
-    int btnY = tabRect.top + 176;
-    MoveCtrl(IDC_LATENCY_DEL_BUTTON, CRect(tabRect.left + 8 + innerWidth - 50, btnY, tabRect.left + 8 + innerWidth, btnY + 14));
-    MoveCtrl(IDC_LATENCY_EDIT_BUTTON, CRect(tabRect.left + 8 + innerWidth - 108, btnY, tabRect.left + 8 + innerWidth - 58, btnY + 14));
-    MoveCtrl(IDC_LATENCY_ADD_BUTTON, CRect(tabRect.left + 8 + innerWidth - 166, btnY, tabRect.left + 8 + innerWidth - 116, btnY + 14));
+        // 按钮排列在下方
+        int btnY = rcP2.bottom - 21;
+        if (auto p = m_page2.GetDlgItem(IDC_LATENCY_DEL_BUTTON)) p->MoveWindow(CRect(rcP2.right - 7 - 50, btnY, rcP2.right - 7, btnY + 14));
+        if (auto p = m_page2.GetDlgItem(IDC_LATENCY_EDIT_BUTTON)) p->MoveWindow(CRect(rcP2.right - 7 - 105, btnY, rcP2.right - 7 - 55, btnY + 14));
+        if (auto p = m_page2.GetDlgItem(IDC_LATENCY_ADD_BUTTON)) p->MoveWindow(CRect(rcP2.right - 7 - 160, btnY, rcP2.right - 7 - 110, btnY + 14));
+    }
 
-    // =====================================
-    // Tab 2: 当前状态面板排版 (动态匹配 Tab 大小)
-    // =====================================
-    MoveCtrl(IDC_STATUS_INFO_EDIT, CRect(tabRect.left + 8, tabRect.top + 22, tabRect.left + 8 + innerWidth, tabRect.top + 22 + 168));
+    // 6. 当前状态多行输入框铺满子页面
+    if (::IsWindow(m_page3.GetSafeHwnd()))
+    {
+        CRect rcP3; m_page3.GetClientRect(&rcP3);
+        CRect editRect(rcP3.left + 7, rcP3.top + 7, rcP3.right - 7, rcP3.bottom - 7);
+        if (auto p = m_page3.GetDlgItem(IDC_STATUS_INFO_EDIT)) p->MoveWindow(editRect);
+    }
 }
 
 void COptionsDlg::OnBnClickedShowSecondCheck()
@@ -251,11 +325,11 @@ void COptionsDlg::OnBnClickedShowSecondCheck()
 void COptionsDlg::CollectLatencyTargets()
 {
     m_data.latency_targets.clear();
-    for (int i = 0; i < m_latencyList.GetItemCount(); ++i)
+    for (int i = 0; i < m_page2.m_latencyList.GetItemCount(); ++i)
     {
         LatencyTarget t;
-        t.name = m_latencyList.GetItemText(i, 0).GetString();
-        t.url = m_latencyList.GetItemText(i, 1).GetString();
+        t.name = m_page2.m_latencyList.GetItemText(i, 0).GetString();
+        t.url = m_page2.m_latencyList.GetItemText(i, 1).GetString();
         if (!t.url.empty())
             m_data.latency_targets.push_back(t);
     }
@@ -264,13 +338,13 @@ void COptionsDlg::CollectLatencyTargets()
 void COptionsDlg::OnOK()
 {
     wchar_t buf[1024]{};
-    if (GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
-    if (GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
-    if (GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
-    if (GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
+    if (m_page1.GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
+    if (m_page1.GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
+    if (m_page1.GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
+    if (m_page1.GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
     
     CollectLatencyTargets();
-    m_data.use_proxy = (IsDlgButtonChecked(IDC_USE_PROXY_CHECK) == BST_CHECKED);
+    m_data.use_proxy = (m_page1.IsDlgButtonChecked(IDC_USE_PROXY_CHECK) == BST_CHECKED);
     
     g_data.m_setting_data = m_data; 
     g_data.SaveConfig();
@@ -286,12 +360,12 @@ void COptionsDlg::OnOK()
 
 void COptionsDlg::OnBnClickedRefreshNow()
 {
-    if (auto p = GetDlgItem(IDC_REFRESH_NOW_BUTTON)) { p->EnableWindow(FALSE); p->SetWindowTextW(L"正在刷新..."); }
+    if (auto p = m_page1.GetDlgItem(IDC_REFRESH_NOW_BUTTON)) { p->EnableWindow(FALSE); p->SetWindowTextW(L"正在刷新..."); }
     wchar_t buf[1024]{};
-    if (GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
-    if (GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
-    if (GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
-    if (GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
+    if (m_page1.GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
+    if (m_page1.GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
+    if (m_page1.GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
+    if (m_page1.GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
     
     CollectLatencyTargets(); 
     g_data.m_setting_data = m_data; 
@@ -311,48 +385,49 @@ void COptionsDlg::OnBnClickedLatencyAdd()
     CLatencyEditDlg dlg(this);
     if (dlg.DoModal() == IDOK)
     {
-        int idx = m_latencyList.GetItemCount();
-        int n = m_latencyList.InsertItem(idx, dlg.m_name.c_str());
-        m_latencyList.SetItemText(n, 1, dlg.m_url.c_str());
+        int idx = m_page2.m_latencyList.GetItemCount();
+        int n = m_page2.m_latencyList.InsertItem(idx, dlg.m_name.c_str());
+        m_page2.m_latencyList.SetItemText(n, 1, dlg.m_url.c_str());
     }
 }
 
 void COptionsDlg::OnBnClickedLatencyEdit()
 {
-    int sel = m_latencyList.GetNextItem(-1, LVNI_SELECTED);
+    int sel = m_page2.m_latencyList.GetNextItem(-1, LVNI_SELECTED);
     if (sel < 0)
     {
         MessageBox(L"请先在列表中选择要修改的目标！", L"提示", MB_OK | MB_ICONINFORMATION);
         return;
     }
     CLatencyEditDlg dlg(this);
-    dlg.m_name = m_latencyList.GetItemText(sel, 0).GetString();
-    dlg.m_url = m_latencyList.GetItemText(sel, 1).GetString();
+    dlg.m_name = m_page2.m_latencyList.GetItemText(sel, 0).GetString();
+    dlg.m_url = m_page2.m_latencyList.GetItemText(sel, 1).GetString();
     if (dlg.DoModal() == IDOK)
     {
-        m_latencyList.SetItemText(sel, 0, dlg.m_name.c_str());
-        m_latencyList.SetItemText(sel, 1, dlg.m_url.c_str());
+        m_page2.m_latencyList.SetItemText(sel, 0, dlg.m_name.c_str());
+        m_page2.m_latencyList.SetItemText(sel, 1, dlg.m_url.c_str());
     }
 }
 
 void COptionsDlg::OnBnClickedLatencyDel()
 {
-    int sel = m_latencyList.GetNextItem(-1, LVNI_SELECTED);
+    int sel = m_page2.m_latencyList.GetNextItem(-1, LVNI_SELECTED);
     if (sel < 0)
     {
         MessageBox(L"请先在列表中选择要删除的目标！", L"提示", MB_OK | MB_ICONINFORMATION);
         return;
     }
-    m_latencyList.DeleteItem(sel);
+    m_page2.m_latencyList.DeleteItem(sel);
 }
 
 void COptionsDlg::UpdateCurrentInfoUI()
 {
     CString text = g_data.m_tooltip.c_str();
     if (text.IsEmpty()) text = L"尚无数据，请点击“立即刷新”";
-    if (::IsWindow(GetDlgItem(IDC_STATUS_INFO_EDIT)->GetSafeHwnd()))
+    if (::IsWindow(m_page3.GetSafeHwnd()))
     {
-        GetDlgItem(IDC_STATUS_INFO_EDIT)->SetWindowTextW(text);
+        if (auto p = m_page3.GetDlgItem(IDC_STATUS_INFO_EDIT))
+            p->SetWindowTextW(text);
     }
 }
 
@@ -370,8 +445,19 @@ LRESULT COptionsDlg::OnIpUpdateDone(WPARAM, LPARAM)
 {
     CString status = g_data.GetLastUpdateStatusString().c_str();
     if (!m_data.use_proxy) status += L"  （未使用代理）";
-    SetDlgItemTextW(IDC_STATUS_STATIC, status);
+    
+    if (::IsWindow(m_page1.GetSafeHwnd()))
+        m_page1.SetDlgItemTextW(IDC_STATUS_STATIC, status);
+        
     UpdateCurrentInfoUI();
-    if (auto p = GetDlgItem(IDC_REFRESH_NOW_BUTTON)) { p->EnableWindow(TRUE); p->SetWindowTextW(L"立即刷新"); }
+    
+    if (::IsWindow(m_page1.GetSafeHwnd()))
+    {
+        if (auto p = m_page1.GetDlgItem(IDC_REFRESH_NOW_BUTTON))
+        {
+            p->EnableWindow(TRUE);
+            p->SetWindowTextW(L"立即刷新");
+        }
+    }
     return 0;
 }
