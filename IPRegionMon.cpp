@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "IPRegionMon.h"
 #include "DataManager.h"
-#include "OptionsDlg.h"
+
 #include <thread>
 
 CIPRegionMon CIPRegionMon::m_instance;
@@ -44,12 +44,8 @@ const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
 
 ITMPlugin::OptionReturn CIPRegionMon::ShowOptionsDialog(void* hParent)
 {
-    AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    COptionsDlg dlg(CWnd::FromHandle((HWND)hParent));
-    dlg.m_data = CDataManager::Instance().m_setting_data;
-    if (dlg.DoModal() == IDOK)
-    { CDataManager::Instance().m_setting_data = dlg.m_data; return ITMPlugin::OR_OPTION_CHANGED; }
-    return ITMPlugin::OR_OPTION_UNCHANGED;
+    // 暂不提供设置界面，通过文档记录以备后续使用现代框架重构
+    return ITMPlugin::OR_OPTION_NOT_PROVIDED;
 }
 
 void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)

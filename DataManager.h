@@ -37,7 +37,7 @@ struct SettingData
 class CDataManager
 {
     friend class CIPRegionMon;
-    friend class COptionsDlg;
+
 private:
     CDataManager();
     ~CDataManager();
