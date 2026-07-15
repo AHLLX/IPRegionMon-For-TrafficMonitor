@@ -1,6 +1,6 @@
-﻿//{{NO_DEPENDENCIES}}
+//{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ 生成的包含文件。
-// 供 PluginDemo.rc 使用
+// 供 IPRegionMon.rc 使用
 //
 #define IDD_DIALOG1                     101
 #define IDD_OPTIONS_DIALOG              101

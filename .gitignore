@@ -39,3 +39,19 @@
 
 # debug information files
 *.dwo
+
+# Visual Studio specific files
+.vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM/
+ARM64/
+IPRegionMon/
+Bin/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
