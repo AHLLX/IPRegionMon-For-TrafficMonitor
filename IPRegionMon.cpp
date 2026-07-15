@@ -42,10 +42,15 @@ const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
     }
 }
 
+#include "OptionsDlg.h"
+
 ITMPlugin::OptionReturn CIPRegionMon::ShowOptionsDialog(void* hParent)
 {
-    // 暂不提供设置界面，通过文档记录以备后续使用现代框架重构
-    return ITMPlugin::OR_OPTION_NOT_PROVIDED;
+    AFX_MANAGE_STATE(AfxGetStaticModuleState());
+    COptionsDlg dlg(CWnd::FromHandle((HWND)hParent));
+    if (dlg.DoModal() == IDOK)
+        return ITMPlugin::OR_OPTION_CHANGED;
+    return ITMPlugin::OR_OPTION_UNCHANGED;
 }
 
 void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)
