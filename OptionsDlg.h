@@ -1,14 +1,12 @@
 #pragma once
 #include "DataManager.h"
-#include <memory>
 #include <vector>
+#include <afxcmn.h> // Required for CTabCtrl and CListCtrl
 
 // 自定义消息：刷新完成
 #ifndef WM_IP_UPDATE_DONE
 #define WM_IP_UPDATE_DONE (WM_APP + 101)
 #endif
-
-// COptionsDlg 对话框
 
 class COptionsDlg : public CDialog
 {
@@ -35,44 +33,22 @@ public:
     virtual void OnOK();
     afx_msg void OnBnClickedRefreshNow();
     afx_msg void OnBnClickedLatencyAdd();
-    afx_msg void OnLatencyDelClicked(UINT nID);
+    afx_msg void OnBnClickedLatencyEdit();
+    afx_msg void OnBnClickedLatencyDel();
+    afx_msg void OnTcnSelchangeTabMain(NMHDR *pNMHDR, LRESULT *pResult);
     afx_msg void OnSize(UINT nType, int cx, int cy) { CDialog::OnSize(nType, cx, cy); if (IsWindowVisible()) LayoutAll(); }
     afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
     afx_msg LRESULT OnIpUpdateDone(WPARAM, LPARAM);
 
 private:
-    void RefreshLatencyListUI();
-    void AddLatencyRow(const LatencyTarget& t);
     void CollectLatencyTargets();
-
-    // 自适应布局
     void LayoutAll();
     void UpdateCurrentInfoUI();
+    void ShowTabControls(int tab);
 
-    // 运行时创建的控件与数据行，避免使用全局静态
-    struct RowCtrl { CEdit name_edit; CEdit url_edit; CButton del_btn; };
-    std::vector<std::unique_ptr<RowCtrl>> m_rows;
-    CEdit m_infoEdit;
+    CTabCtrl m_tabCtrl;
+    CListCtrl m_latencyList;
 
     CSize m_minTrackSize{ 0, 0 };
-    int m_latencyBottomY{ 0 }; // 动态行布局后的底部Y
-
-    struct InitLayout {
-        CRect grpProxy;
-        CRect useProxy;
-        CRect proxyLabel;
-        CRect proxyEdit;
-        CRect apiDomLabel;
-        CRect apiDomEdit;
-        CRect apiForLabel;
-        CRect apiForEdit;
-        
-        CRect grpLatency;
-        CRect refLabel;
-        CRect refEdit;
-        CRect refBtn;
-        CRect addBtn;
-    };
-    InitLayout m_initLayout;
     bool m_layoutInitialized{ false };
 };

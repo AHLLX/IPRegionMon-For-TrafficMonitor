@@ -48,6 +48,18 @@
 #define IDC_GRP_PROXY                   1130
 #define IDC_GRP_LATENCY                 1132
 
+// Tab与列表控件
+#define IDC_TAB_MAIN                    1140
+#define IDC_LATENCY_LIST                1141
+#define IDC_LATENCY_EDIT_BUTTON         1142
+#define IDC_LATENCY_DEL_BUTTON          1143
+#define IDC_STATUS_INFO_EDIT            1144
+
+// 弹出式延迟编辑对话框
+#define IDD_LATENCY_EDIT_DIALOG         105
+#define IDC_LATENCY_NAME_EDIT           1151
+#define IDC_LATENCY_URL_EDIT            1152
+
 // 在末尾追加基础ID（避免冲突）
 #define IDC_LATENCY_DEL_BASE            1200
 
@@ -55,9 +67,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        104
+#define _APS_NEXT_RESOURCE_VALUE        106
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1130
+#define _APS_NEXT_CONTROL_VALUE         1160
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
