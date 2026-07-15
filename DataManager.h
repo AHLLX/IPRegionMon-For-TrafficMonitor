@@ -1,8 +1,10 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <map>
 #include <vector>
 #include <Windows.h>
+#include <atomic>
+#include <mutex>
 
 #define g_data CDataManager::Instance()
 
@@ -34,6 +36,8 @@ struct SettingData
 
 class CDataManager
 {
+    friend class CIPRegionMon;
+    friend class COptionsDlg;
 private:
     CDataManager();
     ~CDataManager();
@@ -52,6 +56,11 @@ public:
 
     // 获取状态展示字符串（用于对话框显示）
     std::wstring GetLastUpdateStatusString() const;
+
+    // 将后台缓存的数据安全地同步到前台（必须在 UI 线程调用）
+    void SwapBuffers();
+    // 写入日志到 IPRegionMon_debug.log
+    void LogInfo(const wchar_t* format, ...);
 
 public:
     std::wstring m_cur_time;
@@ -95,4 +104,19 @@ private:
     bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp);
 
     void UpdateStatusStrings(bool updated, bool is_domestic);
+
+    // 后台缓存变量 (Double Buffering)
+    std::wstring m_public_ip_direct_bg;
+    std::wstring m_public_ip_proxy_bg;
+    std::wstring m_place_direct_bg;
+    std::wstring m_place_proxy_bg;
+    std::wstring m_isp_direct_bg;
+    std::wstring m_isp_proxy_bg;
+    std::vector<LatencyResult> m_latency_results_bg;
+    std::wstring m_tooltip_bg;
+    std::wstring m_ip_region_display_bg;
+
+    std::atomic<bool> m_is_updating{ false };
+    std::atomic<bool> m_has_new_data{ false };
+    std::mutex m_swap_mutex;
 };

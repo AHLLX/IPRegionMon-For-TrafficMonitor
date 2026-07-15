@@ -1,4 +1,4 @@
-﻿// OptionsDlg.cpp: 实现文件
+// OptionsDlg.cpp: 实现文件
 //
 
 #include "pch.h"
@@ -106,21 +106,34 @@ void COptionsDlg::LayoutAll()
 
     auto rcOf = [&](int id){ CRect r; GetDlgItem(id)->GetWindowRect(&r); ScreenToClient(&r); return r; };
     CRect grpProxy = rcOf(IDC_GRP_PROXY), grpLatency = rcOf(IDC_GRP_LATENCY);
-    CRect useProxy = rcOf(IDC_USE_PROXY_CHECK), proxyLabel = rcOf(IDC_PROXY_LABEL), proxyEdit = rcOf(IDC_PROXY_EDIT);
-    CRect refLabel = rcOf(IDC_REFRESH_INTERVAL_LABEL), refEdit = rcOf(IDC_REFRESH_INTERVAL_EDIT), refBtn = rcOf(IDC_REFRESH_NOW_BUTTON), addBtn = rcOf(IDC_LATENCY_ADD_BUTTON);
+    CRect useProxy = rcOf(IDC_USE_PROXY_CHECK);
 
     const int margin = 7, vgap = 8;
-    CRect grpProxyN(margin, margin, rcCli.right - margin, margin + grpProxy.Height());
+    // 强制 grpProxyN 高度为 90 (以容纳新的 API 输入控件)
+    CRect grpProxyN(margin, margin, rcCli.right - margin, margin + 90);
     CRect grpLatencyN(margin, grpProxyN.bottom + vgap, rcCli.right - margin, rcCli.bottom - 48);
 
     auto MoveCtrl = [&](int id, const CRect& r){ if (auto p = GetDlgItem(id)) p->MoveWindow(r); };
     MoveCtrl(IDC_GRP_PROXY, grpProxyN); MoveCtrl(IDC_GRP_LATENCY, grpLatencyN);
 
-    auto leftOf=[&](CRect c,CRect p){return c.left-p.left;}; auto topOf=[&](CRect c,CRect p){return c.top-p.top;}; auto rightM=[&](CRect c,CRect p){return p.right-c.right;};
+    // 对齐宽度，支持中英文标签
+    int editLeft = grpProxyN.left + 70;
 
-    MoveCtrl(IDC_USE_PROXY_CHECK, CRect(grpProxyN.left + leftOf(useProxy, grpProxy), grpProxyN.top + topOf(useProxy, grpProxy), grpProxyN.left + leftOf(useProxy, grpProxy) + useProxy.Width(), grpProxyN.top + topOf(useProxy, grpProxy) + useProxy.Height()));
-    MoveCtrl(IDC_PROXY_LABEL,      CRect(grpProxyN.left + leftOf(proxyLabel, grpProxy), grpProxyN.top + topOf(proxyLabel, grpProxy), grpProxyN.left + leftOf(proxyLabel, grpProxy) + proxyLabel.Width(), grpProxyN.top + topOf(proxyLabel, grpProxy) + proxyLabel.Height()));
-    MoveCtrl(IDC_PROXY_EDIT,       CRect(grpProxyN.left + leftOf(proxyEdit, grpProxy),  grpProxyN.top + topOf(proxyEdit, grpProxy),  grpProxyN.right - rightM(proxyEdit, grpProxy), grpProxyN.top + topOf(proxyEdit, grpProxy) + proxyEdit.Height()));
+    // 代理/API 控件的排版
+    MoveCtrl(IDC_USE_PROXY_CHECK,    CRect(grpProxyN.left + 15, grpProxyN.top + 18, grpProxyN.left + 15 + 100, grpProxyN.top + 18 + 10));
+    
+    MoveCtrl(IDC_PROXY_LABEL,        CRect(grpProxyN.left + 15, grpProxyN.top + 36, editLeft - 4, grpProxyN.top + 36 + 10));
+    MoveCtrl(IDC_PROXY_EDIT,         CRect(editLeft,            grpProxyN.top + 34, grpProxyN.right - 10, grpProxyN.top + 34 + 12));
+    
+    MoveCtrl(IDC_API_DOMESTIC_LABEL, CRect(grpProxyN.left + 15, grpProxyN.top + 54, editLeft - 4, grpProxyN.top + 54 + 10));
+    MoveCtrl(IDC_API_DOMESTIC_EDIT,  CRect(editLeft,            grpProxyN.top + 52, grpProxyN.right - 10, grpProxyN.top + 52 + 12));
+    
+    MoveCtrl(IDC_API_FOREIGN_LABEL,  CRect(grpProxyN.left + 15, grpProxyN.top + 72, editLeft - 4, grpProxyN.top + 72 + 10));
+    MoveCtrl(IDC_API_FOREIGN_EDIT,   CRect(editLeft,            grpProxyN.top + 70, grpProxyN.right - 10, grpProxyN.top + 70 + 12));
+
+    // 刷新/延迟 控件的排版
+    CRect refLabel = rcOf(IDC_REFRESH_INTERVAL_LABEL), refEdit = rcOf(IDC_REFRESH_INTERVAL_EDIT), refBtn = rcOf(IDC_REFRESH_NOW_BUTTON), addBtn = rcOf(IDC_LATENCY_ADD_BUTTON);
+    auto leftOf=[&](CRect c,CRect p){return c.left-p.left;}; auto topOf=[&](CRect c,CRect p){return c.top-p.top;}; auto rightM=[&](CRect c,CRect p){return p.right-c.right;};
 
     MoveCtrl(IDC_REFRESH_INTERVAL_LABEL, CRect(grpLatencyN.left + leftOf(refLabel, grpLatency), grpLatencyN.top + topOf(refLabel, grpLatency), grpLatencyN.left + leftOf(refLabel, grpLatency) + refLabel.Width(), grpLatencyN.top + topOf(refLabel, grpLatency) + refLabel.Height()));
     MoveCtrl(IDC_REFRESH_INTERVAL_EDIT,  CRect(grpLatencyN.left + leftOf(refEdit, grpLatency),  grpLatencyN.top + topOf(refEdit, grpLatency),  grpLatencyN.left + leftOf(refEdit, grpLatency) + refEdit.Width(), grpLatencyN.top + topOf(refEdit, grpLatency) + refEdit.Height()));
@@ -141,11 +154,21 @@ void COptionsDlg::LayoutAll()
 BOOL COptionsDlg::OnInitDialog()
 {
     CDialog::OnInitDialog();
-    if (CFont* f = GetFont()) { if (auto p = GetDlgItem(IDOK)) p->SetFont(f); if (auto p = GetDlgItem(IDCANCEL)) p->SetFont(f); }
+    if (CFont* f = GetFont())
+    {
+        const int ids[] = { IDOK, IDCANCEL, IDC_USE_PROXY_CHECK, IDC_PROXY_LABEL, IDC_PROXY_EDIT,
+                            IDC_API_DOMESTIC_LABEL, IDC_API_DOMESTIC_EDIT,
+                            IDC_API_FOREIGN_LABEL, IDC_API_FOREIGN_EDIT,
+                            IDC_REFRESH_INTERVAL_LABEL, IDC_REFRESH_INTERVAL_EDIT, IDC_REFRESH_NOW_BUTTON,
+                            IDC_LATENCY_ADD_BUTTON, IDC_STATUS_STATIC, IDC_GRP_PROXY, IDC_GRP_LATENCY };
+        for (int id : ids) { if (auto p = GetDlgItem(id)) p->SetFont(f); }
+    }
 
     CheckDlgButton(IDC_SHOW_SECOND_CHECK, m_data.show_second);
     CheckDlgButton(IDC_USE_PROXY_CHECK, m_data.use_proxy ? BST_CHECKED : BST_UNCHECKED);
     SetDlgItemTextW(IDC_PROXY_EDIT, m_data.proxy_address.c_str());
+    SetDlgItemTextW(IDC_API_DOMESTIC_EDIT, m_data.api_domestic_url.c_str());
+    SetDlgItemTextW(IDC_API_FOREIGN_EDIT, m_data.api_foreign_url.c_str());
 
     wchar_t buf[32]{}; swprintf_s(buf, L"%d", m_data.refresh_interval_sec); SetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf);
 
@@ -167,19 +190,38 @@ void COptionsDlg::OnOK()
 {
     wchar_t buf[1024]{};
     if (GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
+    if (GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
+    if (GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
     if (GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
     CollectLatencyTargets();
     m_data.use_proxy = (IsDlgButtonChecked(IDC_USE_PROXY_CHECK) == BST_CHECKED);
     g_data.m_setting_data = m_data; g_data.SaveConfig();
-    std::thread([]{ g_data.UpdateIpInfoNow(); }).detach();
+    
+    g_data.m_is_updating = true;
+    std::thread([]{
+        g_data.UpdateIpInfoNow();
+        g_data.m_is_updating = false;
+    }).detach();
     CDialog::OnOK();
 }
 
 void COptionsDlg::OnBnClickedRefreshNow()
 {
     if (auto p = GetDlgItem(IDC_REFRESH_NOW_BUTTON)) { p->EnableWindow(FALSE); p->SetWindowTextW(L"正在刷新..."); }
+    wchar_t buf[1024]{};
+    if (GetDlgItemTextW(IDC_PROXY_EDIT, buf, _countof(buf)) > 0) m_data.proxy_address = buf;
+    if (GetDlgItemTextW(IDC_API_DOMESTIC_EDIT, buf, _countof(buf)) > 0) m_data.api_domestic_url = buf;
+    if (GetDlgItemTextW(IDC_API_FOREIGN_EDIT, buf, _countof(buf)) > 0) m_data.api_foreign_url = buf;
+    if (GetDlgItemTextW(IDC_REFRESH_INTERVAL_EDIT, buf, _countof(buf)) > 0) { m_data.refresh_interval_sec = _wtoi(buf); if (m_data.refresh_interval_sec < 5) m_data.refresh_interval_sec = 5; }
     CollectLatencyTargets(); g_data.m_setting_data = m_data; g_data.SaveConfig();
-    auto hwnd = m_hWnd; std::thread([hwnd]{ g_data.UpdateIpInfoNow(); ::PostMessage(hwnd, WM_IP_UPDATE_DONE, 0, 0); }).detach();
+    
+    g_data.m_is_updating = true;
+    auto hwnd = m_hWnd;
+    std::thread([hwnd]{
+        g_data.UpdateIpInfoNow();
+        g_data.m_is_updating = false;
+        ::PostMessage(hwnd, WM_IP_UPDATE_DONE, 0, 0);
+    }).detach();
 }
 
 void COptionsDlg::OnBnClickedLatencyAdd()

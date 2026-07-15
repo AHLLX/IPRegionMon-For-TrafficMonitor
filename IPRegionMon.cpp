@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "IPRegionMon.h"
 #include "DataManager.h"
 #include "OptionsDlg.h"
@@ -20,7 +20,11 @@ IPluginItem* CIPRegionMon::GetItem(int index)
     }
 }
 
-void CIPRegionMon::DataRequired() { g_data.UpdateIpInfoIfNeeded(); }
+void CIPRegionMon::DataRequired()
+{
+    g_data.SwapBuffers();
+    g_data.UpdateIpInfoIfNeeded();
+}
 
 const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
 {
@@ -54,7 +58,11 @@ void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)
     {
     case ITMPlugin::EI_CONFIG_DIR:
         g_data.LoadConfig(std::wstring(data));
-        std::thread([]{ g_data.UpdateIpInfoNow(); }).detach();
+        g_data.m_is_updating = true;
+        std::thread([]{
+            g_data.UpdateIpInfoNow();
+            g_data.m_is_updating = false;
+        }).detach();
         break;
     default: break;
     }

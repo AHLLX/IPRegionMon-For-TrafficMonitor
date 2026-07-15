@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "CustomDrawItem.h"
 #include "DataManager.h"
 
@@ -29,6 +29,6 @@ const wchar_t* CCustomDrawItem::GetItemValueText() const
 
 const wchar_t* CCustomDrawItem::GetItemValueSampleText() const
 {
-    // 示例用于计算宽度：只显示地区即可
-    return m_is_proxy ? L"US CA Los Angeles" : L"CN 上海";
+    // 示例用于计算宽度：返回稍长文本，防止任务栏文字截断
+    return m_is_proxy ? L"中国 广东 深圳 移动 192.168.1.1" : L"中国 北京 北京 联通 192.168.1.1";
 }
