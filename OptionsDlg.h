@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "DataManager.h"
 #include <memory>
 #include <vector>
@@ -56,4 +56,23 @@ private:
 
     CSize m_minTrackSize{ 0, 0 };
     int m_latencyBottomY{ 0 }; // 动态行布局后的底部Y
+
+    struct InitLayout {
+        CRect grpProxy;
+        CRect useProxy;
+        CRect proxyLabel;
+        CRect proxyEdit;
+        CRect apiDomLabel;
+        CRect apiDomEdit;
+        CRect apiForLabel;
+        CRect apiForEdit;
+        
+        CRect grpLatency;
+        CRect refLabel;
+        CRect refEdit;
+        CRect refBtn;
+        CRect addBtn;
+    };
+    InitLayout m_initLayout;
+    bool m_layoutInitialized{ false };
 };

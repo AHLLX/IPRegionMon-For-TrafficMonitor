@@ -102,44 +102,74 @@ void COptionsDlg::CollectLatencyTargets()
 
 void COptionsDlg::LayoutAll()
 {
+    if (!m_layoutInitialized) return;
+
     CRect rcCli; GetClientRect(&rcCli);
 
-    auto rcOf = [&](int id){ CRect r; GetDlgItem(id)->GetWindowRect(&r); ScreenToClient(&r); return r; };
-    CRect grpProxy = rcOf(IDC_GRP_PROXY), grpLatency = rcOf(IDC_GRP_LATENCY);
-    CRect useProxy = rcOf(IDC_USE_PROXY_CHECK);
-
     const int margin = 7, vgap = 8;
-    // 强制 grpProxyN 高度为 90 (以容纳新的 API 输入控件)
-    CRect grpProxyN(margin, margin, rcCli.right - margin, margin + 90);
+    // 强制 grpProxyN 高度为初始设计时的高度（防重叠与DPI错位）
+    CRect grpProxyN(margin, margin, rcCli.right - margin, margin + m_initLayout.grpProxy.Height());
     CRect grpLatencyN(margin, grpProxyN.bottom + vgap, rcCli.right - margin, rcCli.bottom - 48);
 
     auto MoveCtrl = [&](int id, const CRect& r){ if (auto p = GetDlgItem(id)) p->MoveWindow(r); };
     MoveCtrl(IDC_GRP_PROXY, grpProxyN); MoveCtrl(IDC_GRP_LATENCY, grpLatencyN);
 
-    // 对齐宽度，支持中英文标签
-    int editLeft = grpProxyN.left + 70;
+    // 基于初始大小的自适应对齐计算
+    auto leftOf = [&](CRect c, CRect p){ return c.left - p.left; };
+    auto topOf = [&](CRect c, CRect p){ return c.top - p.top; };
+    auto rightM = [&](CRect c, CRect p){ return p.right - c.right; };
 
-    // 代理/API 控件的排版
-    MoveCtrl(IDC_USE_PROXY_CHECK,    CRect(grpProxyN.left + 15, grpProxyN.top + 18, grpProxyN.left + 15 + 100, grpProxyN.top + 18 + 10));
+    // 代理/API 控件的自适应排版
+    MoveCtrl(IDC_USE_PROXY_CHECK,    CRect(grpProxyN.left + leftOf(m_initLayout.useProxy, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.useProxy, m_initLayout.grpProxy), 
+                                           grpProxyN.left + leftOf(m_initLayout.useProxy, m_initLayout.grpProxy) + m_initLayout.useProxy.Width(), 
+                                           grpProxyN.top + topOf(m_initLayout.useProxy, m_initLayout.grpProxy) + m_initLayout.useProxy.Height()));
     
-    MoveCtrl(IDC_PROXY_LABEL,        CRect(grpProxyN.left + 15, grpProxyN.top + 36, editLeft - 4, grpProxyN.top + 36 + 10));
-    MoveCtrl(IDC_PROXY_EDIT,         CRect(editLeft,            grpProxyN.top + 34, grpProxyN.right - 10, grpProxyN.top + 34 + 12));
+    MoveCtrl(IDC_PROXY_LABEL,        CRect(grpProxyN.left + leftOf(m_initLayout.proxyLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.proxyLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.left + leftOf(m_initLayout.proxyLabel, m_initLayout.grpProxy) + m_initLayout.proxyLabel.Width(), 
+                                           grpProxyN.top + topOf(m_initLayout.proxyLabel, m_initLayout.grpProxy) + m_initLayout.proxyLabel.Height()));
+    MoveCtrl(IDC_PROXY_EDIT,         CRect(grpProxyN.left + leftOf(m_initLayout.proxyEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.top + topOf(m_initLayout.proxyEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.right - rightM(m_initLayout.proxyEdit, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.proxyEdit, m_initLayout.grpProxy) + m_initLayout.proxyEdit.Height()));
     
-    MoveCtrl(IDC_API_DOMESTIC_LABEL, CRect(grpProxyN.left + 15, grpProxyN.top + 54, editLeft - 4, grpProxyN.top + 54 + 10));
-    MoveCtrl(IDC_API_DOMESTIC_EDIT,  CRect(editLeft,            grpProxyN.top + 52, grpProxyN.right - 10, grpProxyN.top + 52 + 12));
+    MoveCtrl(IDC_API_DOMESTIC_LABEL, CRect(grpProxyN.left + leftOf(m_initLayout.apiDomLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.apiDomLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.left + leftOf(m_initLayout.apiDomLabel, m_initLayout.grpProxy) + m_initLayout.apiDomLabel.Width(), 
+                                           grpProxyN.top + topOf(m_initLayout.apiDomLabel, m_initLayout.grpProxy) + m_initLayout.apiDomLabel.Height()));
+    MoveCtrl(IDC_API_DOMESTIC_EDIT,  CRect(grpProxyN.left + leftOf(m_initLayout.apiDomEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.top + topOf(m_initLayout.apiDomEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.right - rightM(m_initLayout.apiDomEdit, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.apiDomEdit, m_initLayout.grpProxy) + m_initLayout.apiDomEdit.Height()));
     
-    MoveCtrl(IDC_API_FOREIGN_LABEL,  CRect(grpProxyN.left + 15, grpProxyN.top + 72, editLeft - 4, grpProxyN.top + 72 + 10));
-    MoveCtrl(IDC_API_FOREIGN_EDIT,   CRect(editLeft,            grpProxyN.top + 70, grpProxyN.right - 10, grpProxyN.top + 70 + 12));
+    MoveCtrl(IDC_API_FOREIGN_LABEL,  CRect(grpProxyN.left + leftOf(m_initLayout.apiForLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.apiForLabel, m_initLayout.grpProxy), 
+                                           grpProxyN.left + leftOf(m_initLayout.apiForLabel, m_initLayout.grpProxy) + m_initLayout.apiForLabel.Width(), 
+                                           grpProxyN.top + topOf(m_initLayout.apiForLabel, m_initLayout.grpProxy) + m_initLayout.apiForLabel.Height()));
+    MoveCtrl(IDC_API_FOREIGN_EDIT,   CRect(grpProxyN.left + leftOf(m_initLayout.apiForEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.top + topOf(m_initLayout.apiForEdit, m_initLayout.grpProxy),  
+                                           grpProxyN.right - rightM(m_initLayout.apiForEdit, m_initLayout.grpProxy), 
+                                           grpProxyN.top + topOf(m_initLayout.apiForEdit, m_initLayout.grpProxy) + m_initLayout.apiForEdit.Height()));
 
     // 刷新/延迟 控件的排版
-    CRect refLabel = rcOf(IDC_REFRESH_INTERVAL_LABEL), refEdit = rcOf(IDC_REFRESH_INTERVAL_EDIT), refBtn = rcOf(IDC_REFRESH_NOW_BUTTON), addBtn = rcOf(IDC_LATENCY_ADD_BUTTON);
-    auto leftOf=[&](CRect c,CRect p){return c.left-p.left;}; auto topOf=[&](CRect c,CRect p){return c.top-p.top;}; auto rightM=[&](CRect c,CRect p){return p.right-c.right;};
+    MoveCtrl(IDC_REFRESH_INTERVAL_LABEL, CRect(grpLatencyN.left + leftOf(m_initLayout.refLabel, m_initLayout.grpLatency), 
+                                                grpLatencyN.top + topOf(m_initLayout.refLabel, m_initLayout.grpLatency), 
+                                                grpLatencyN.left + leftOf(m_initLayout.refLabel, m_initLayout.grpLatency) + m_initLayout.refLabel.Width(), 
+                                                grpLatencyN.top + topOf(m_initLayout.refLabel, m_initLayout.grpLatency) + m_initLayout.refLabel.Height()));
+    MoveCtrl(IDC_REFRESH_INTERVAL_EDIT,  CRect(grpLatencyN.left + leftOf(m_initLayout.refEdit, m_initLayout.grpLatency),  
+                                                grpLatencyN.top + topOf(m_initLayout.refEdit, m_initLayout.grpLatency),  
+                                                grpLatencyN.left + leftOf(m_initLayout.refEdit, m_initLayout.grpLatency) + m_initLayout.refEdit.Width(), 
+                                                grpLatencyN.top + topOf(m_initLayout.refEdit, m_initLayout.grpLatency) + m_initLayout.refEdit.Height()));
 
-    MoveCtrl(IDC_REFRESH_INTERVAL_LABEL, CRect(grpLatencyN.left + leftOf(refLabel, grpLatency), grpLatencyN.top + topOf(refLabel, grpLatency), grpLatencyN.left + leftOf(refLabel, grpLatency) + refLabel.Width(), grpLatencyN.top + topOf(refLabel, grpLatency) + refLabel.Height()));
-    MoveCtrl(IDC_REFRESH_INTERVAL_EDIT,  CRect(grpLatencyN.left + leftOf(refEdit, grpLatency),  grpLatencyN.top + topOf(refEdit, grpLatency),  grpLatencyN.left + leftOf(refEdit, grpLatency) + refEdit.Width(), grpLatencyN.top + topOf(refEdit, grpLatency) + refEdit.Height()));
-
-    MoveCtrl(IDC_REFRESH_NOW_BUTTON, CRect(grpLatencyN.right - rightM(refBtn, grpLatency) - refBtn.Width(), grpLatencyN.top + topOf(refBtn, grpLatency), grpLatencyN.right - rightM(refBtn, grpLatency), grpLatencyN.top + topOf(refBtn, grpLatency) + refBtn.Height()));
-    MoveCtrl(IDC_LATENCY_ADD_BUTTON, CRect(grpLatencyN.right - rightM(addBtn, grpLatency) - addBtn.Width(), grpLatencyN.top + topOf(addBtn, grpLatency), grpLatencyN.right - rightM(addBtn, grpLatency), grpLatencyN.top + topOf(addBtn, grpLatency) + addBtn.Height()));
+    MoveCtrl(IDC_REFRESH_NOW_BUTTON, CRect(grpLatencyN.right - rightM(m_initLayout.refBtn, m_initLayout.grpLatency) - m_initLayout.refBtn.Width(), 
+                                            grpLatencyN.top + topOf(m_initLayout.refBtn, m_initLayout.grpLatency), 
+                                            grpLatencyN.right - rightM(m_initLayout.refBtn, m_initLayout.grpLatency), 
+                                            grpLatencyN.top + topOf(m_initLayout.refBtn, m_initLayout.grpLatency) + m_initLayout.refBtn.Height()));
+    MoveCtrl(IDC_LATENCY_ADD_BUTTON, CRect(grpLatencyN.right - rightM(m_initLayout.addBtn, m_initLayout.grpLatency) - m_initLayout.addBtn.Width(), 
+                                            grpLatencyN.top + topOf(m_initLayout.addBtn, m_initLayout.grpLatency), 
+                                            grpLatencyN.right - rightM(m_initLayout.addBtn, m_initLayout.grpLatency), 
+                                            grpLatencyN.top + topOf(m_initLayout.addBtn, m_initLayout.grpLatency) + m_initLayout.addBtn.Height()));
 
     RefreshLatencyListUI();
 
@@ -181,6 +211,25 @@ BOOL COptionsDlg::OnInitDialog()
     CRect rc; GetWindowRect(&rc); m_minTrackSize = rc.Size();
     SetDlgItemTextW(IDC_STATUS_STATIC, g_data.GetLastUpdateStatusString().c_str());
     UpdateCurrentInfoUI();
+
+    // 捕获对话框启动时的初始控件布局，用于后续 LayoutAll 的无累积误差自适应布局
+    auto rcOf = [&](int id){ CRect r; GetDlgItem(id)->GetWindowRect(&r); ScreenToClient(&r); return r; };
+    m_initLayout.grpProxy = rcOf(IDC_GRP_PROXY);
+    m_initLayout.useProxy = rcOf(IDC_USE_PROXY_CHECK);
+    m_initLayout.proxyLabel = rcOf(IDC_PROXY_LABEL);
+    m_initLayout.proxyEdit = rcOf(IDC_PROXY_EDIT);
+    m_initLayout.apiDomLabel = rcOf(IDC_API_DOMESTIC_LABEL);
+    m_initLayout.apiDomEdit = rcOf(IDC_API_DOMESTIC_EDIT);
+    m_initLayout.apiForLabel = rcOf(IDC_API_FOREIGN_LABEL);
+    m_initLayout.apiForEdit = rcOf(IDC_API_FOREIGN_EDIT);
+
+    m_initLayout.grpLatency = rcOf(IDC_GRP_LATENCY);
+    m_initLayout.refLabel = rcOf(IDC_REFRESH_INTERVAL_LABEL);
+    m_initLayout.refEdit = rcOf(IDC_REFRESH_INTERVAL_EDIT);
+    m_initLayout.refBtn = rcOf(IDC_REFRESH_NOW_BUTTON);
+    m_initLayout.addBtn = rcOf(IDC_LATENCY_ADD_BUTTON);
+
+    m_layoutInitialized = true;
     return TRUE;
 }
 
