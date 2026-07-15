@@ -8,6 +8,16 @@
 
 #define g_data CDataManager::Instance()
 
+struct IpThreatInfo {
+    bool is_proxy{false};
+    bool is_vpn{false};
+    bool is_datacenter{false}; // Hosting / Datacenter
+    bool is_tor{false};
+    bool is_mobile{false};     // Cellular
+    bool is_abuser{false};     // 恶意/黑名单
+    std::wstring risk_score;   // 欺诈分/风险分
+};
+
 struct LatencyTarget
 {
     std::wstring name;   // 展示名称
@@ -79,6 +89,8 @@ public:
     std::wstring m_place_proxy;          // 代理的地区字符串
     std::wstring m_isp_direct;           // 直连 ISP
     std::wstring m_isp_proxy;            // 代理 ISP
+    IpThreatInfo m_threat_direct;        // 直连威胁/泄漏信息
+    IpThreatInfo m_threat_proxy;         // 代理威胁/泄漏信息
 
     // 延迟（毫秒，<0 表示无效），按用户配置存放结果
     struct LatencyResult { std::wstring name; double direct_ms{-1}; double proxy_ms{-1}; };
@@ -100,8 +112,8 @@ private:
     bool m_last_source_domestic{ false }; // true: 国内, false: 国外（仅作参考）
     SYSTEMTIME m_last_update_time{};      // 本地时间
 
-    // 执行一次请求，返回 place（国家/地区/城市组合）、ip、isp
-    bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp);
+    // 执行一次请求，返回 place（国家/地区/城市组合）、ip、isp、threat
+    bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
 
     void UpdateStatusStrings(bool updated, bool is_domestic);
 
@@ -112,6 +124,8 @@ private:
     std::wstring m_place_proxy_bg;
     std::wstring m_isp_direct_bg;
     std::wstring m_isp_proxy_bg;
+    IpThreatInfo m_threat_direct_bg;
+    IpThreatInfo m_threat_proxy_bg;
     std::vector<LatencyResult> m_latency_results_bg;
     std::wstring m_tooltip_bg;
     std::wstring m_ip_region_display_bg;

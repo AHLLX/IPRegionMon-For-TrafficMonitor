@@ -138,10 +138,20 @@ static std::wstring GetJsonStringValue(const std::wstring& json, const wchar_t* 
         if (end >= json.size()) return L"";
         return DecodeJsonString(json.substr(start, end - start));
     }
-    // 如果不是字符串（例如 true/false/number），读取到逗号或结束
     size_t end = pos;
     while (end < json.size() && json[end] != L',' && json[end] != L'}' && json[end] != L']') ++end;
-    return DecodeJsonString(json.substr(pos, end - pos));
+    std::wstring raw = json.substr(pos, end - pos);
+    // 移除可能的首尾空白
+    size_t trim_s = 0, trim_e = raw.size();
+    while (trim_s < raw.size() && iswspace(raw[trim_s])) ++trim_s;
+    while (trim_e > trim_s && iswspace(raw[trim_e - 1])) --trim_e;
+    return DecodeJsonString(raw.substr(trim_s, trim_e - trim_s));
+}
+
+static bool GetJsonBoolValue(const std::wstring& json, const wchar_t* key)
+{
+    std::wstring val = GetJsonStringValue(json, key);
+    return (val == L"true" || val == L"1");
 }
 
 // 通过 WinHTTP 进行 GET 请求
@@ -267,10 +277,11 @@ static bool MeasureLatencyMs(const std::wstring& url_or_host, const std::wstring
 
 CDataManager::CDataManager()
 {
-    // 默认 API：使用 http 并包含 message 字段，确保返回失败原因
-    const wchar_t* kDefaultApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query&lang=zh-CN";
-    m_setting_data.api_domestic_url = kDefaultApi;
-    m_setting_data.api_foreign_url  = kDefaultApi;
+    // 默认 API
+    const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
+    const wchar_t* kForeignApi  = L"https://api.ipapi.is/";
+    m_setting_data.api_domestic_url = kDomesticApi;
+    m_setting_data.api_foreign_url  = kForeignApi;
     m_setting_data.use_proxy = false;
     m_setting_data.refresh_interval_sec = 300;
     m_setting_data.show_ip = true;
@@ -351,10 +362,11 @@ void CDataManager::LoadConfig(const std::wstring& config_dir)
     if (!domestic.empty()) m_setting_data.api_domestic_url = domestic; else if (!m_setting_data.api_url.empty()) m_setting_data.api_domestic_url = m_setting_data.api_url;
     if (!foreign.empty())  m_setting_data.api_foreign_url  = foreign;  else if (!m_setting_data.api_url.empty()) m_setting_data.api_foreign_url  = m_setting_data.api_url;
 
-    // 如果仍为空，回退到 http + message 的默认接口
-    const wchar_t* kDefaultApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query&lang=zh-CN";
-    if (m_setting_data.api_domestic_url.empty()) m_setting_data.api_domestic_url = kDefaultApi;
-    if (m_setting_data.api_foreign_url.empty())  m_setting_data.api_foreign_url  = kDefaultApi;
+    // 如果仍为空，回退到默认接口
+    const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
+    const wchar_t* kForeignApi  = L"https://api.ipapi.is/";
+    if (m_setting_data.api_domestic_url.empty()) m_setting_data.api_domestic_url = kDomesticApi;
+    if (m_setting_data.api_foreign_url.empty())  m_setting_data.api_foreign_url  = kForeignApi;
 
     if (m_setting_data.refresh_interval_sec < 5) m_setting_data.refresh_interval_sec = 5;
     m_ip_update_interval_ms = (unsigned int)m_setting_data.refresh_interval_sec * 1000u;
@@ -405,7 +417,7 @@ const wchar_t* CDataManager::StringRes(UINT id)
 }
 
 // signature update
-bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp)
+bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat)
 {
     std::string resp;
     std::wstring proxy = use_proxy ? m_setting_data.proxy_address : L"";
@@ -422,10 +434,30 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
     std::wstring status = GetJsonStringValue(w, L"status");
     std::wstring message = GetJsonStringValue(w, L"message");
     std::wstring ip = GetJsonStringValue(w, L"query"); if (ip.empty()) ip = GetJsonStringValue(w, L"ip");
+    
+    // ipapi.is: location.country
     std::wstring country = GetJsonStringValue(w, L"country"); if (country.empty()) country = GetJsonStringValue(w, L"country_name");
     std::wstring region = GetJsonStringValue(w, L"regionName"); if (region.empty()) region = GetJsonStringValue(w, L"region");
+    if (region.empty()) region = GetJsonStringValue(w, L"state");
     std::wstring city = GetJsonStringValue(w, L"city");
+    
+    // ipapi.is: company.name or asn.org
     std::wstring isp = GetJsonStringValue(w, L"isp");
+    if (isp.empty()) isp = GetJsonStringValue(w, L"name");
+    if (isp.empty()) isp = GetJsonStringValue(w, L"org");
+
+    // 威胁检测字段
+    out_threat = IpThreatInfo{};
+    out_threat.is_proxy = GetJsonBoolValue(w, L"is_proxy") || GetJsonBoolValue(w, L"proxy");
+    out_threat.is_vpn = GetJsonBoolValue(w, L"is_vpn") || GetJsonBoolValue(w, L"vpn");
+    out_threat.is_datacenter = GetJsonBoolValue(w, L"is_datacenter") || GetJsonBoolValue(w, L"hosting");
+    out_threat.is_tor = GetJsonBoolValue(w, L"is_tor") || GetJsonBoolValue(w, L"tor");
+    out_threat.is_mobile = GetJsonBoolValue(w, L"is_mobile") || GetJsonBoolValue(w, L"mobile");
+    out_threat.is_abuser = GetJsonBoolValue(w, L"is_abuser") || GetJsonBoolValue(w, L"abuser");
+    
+    out_threat.risk_score = GetJsonStringValue(w, L"abuser_score");
+    if (out_threat.risk_score.empty()) out_threat.risk_score = GetJsonStringValue(w, L"fraud_score");
+    if (out_threat.risk_score.empty()) out_threat.risk_score = GetJsonStringValue(w, L"risk");
 
     if (status == L"fail" || status == L"error")
     {
@@ -485,6 +517,25 @@ void CDataManager::UpdateStatusStrings(bool updated, bool is_domestic)
     wchar_t tb[64]{}; swprintf_s(tb, L"%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
     m_last_source_domestic = is_domestic;
 
+    auto FormatThreatStr = [](const IpThreatInfo& t) -> std::wstring {
+        std::wstring type = L"未知类型";
+        if (t.is_mobile) type = L"移动网络";
+        else if (t.is_datacenter) type = L"数据中心/机房";
+        else type = L"家庭宽带";
+
+        if (t.is_vpn || t.is_proxy || t.is_tor) {
+            type += L" (";
+            if (t.is_vpn) type += L"VPN/";
+            if (t.is_proxy) type += L"代理/";
+            if (t.is_tor) type += L"Tor/";
+            type.pop_back(); type += L")";
+        }
+
+        std::wstring status = t.is_abuser ? L"恶意/黑名单" : L"纯净";
+        if (!t.risk_score.empty()) { status += L" (分数: "; status += t.risk_score; status += L")"; }
+        return L"    类型: " + type + L" | 状态: " + status + L"\n";
+    };
+
     // 鼠标提示：直/代 + 地区
     m_tooltip_bg.clear();
     if (!m_public_ip_direct_bg.empty())
@@ -494,6 +545,7 @@ void CDataManager::UpdateStatusStrings(bool updated, bool is_domestic)
         if (!m_place_direct_bg.empty()) { m_tooltip_bg += L"  ["; m_tooltip_bg += m_place_direct_bg; m_tooltip_bg += L"]"; }
         if (!m_isp_direct_bg.empty())   { m_tooltip_bg += L"  "; m_tooltip_bg += m_isp_direct_bg; }
         m_tooltip_bg += L"\n";
+        m_tooltip_bg += FormatThreatStr(m_threat_direct_bg);
     }
     if (!m_public_ip_proxy_bg.empty())
     {
@@ -502,6 +554,7 @@ void CDataManager::UpdateStatusStrings(bool updated, bool is_domestic)
         if (!m_place_proxy_bg.empty()) { m_tooltip_bg += L"  ["; m_tooltip_bg += m_place_proxy_bg; m_tooltip_bg += L"]"; }
         if (!m_isp_proxy_bg.empty())   { m_tooltip_bg += L"  "; m_tooltip_bg += m_isp_proxy_bg; }
         m_tooltip_bg += L"\n";
+        m_tooltip_bg += FormatThreatStr(m_threat_proxy_bg);
     }
 
     // 若未启用代理，给出提示
@@ -546,14 +599,14 @@ void CDataManager::UpdateIpInfoNow()
 
     // 直连（绕过系统代理）
     LogInfo(L"UpdateIpInfoNow: Fetching direct IP using URL: %s", m_setting_data.api_domestic_url.c_str());
-    if (FetchIpInfoByUrl(m_setting_data.api_domestic_url, false, place, ip, isp))
+    if (FetchIpInfoByUrl(m_setting_data.api_domestic_url, false, place, ip, isp, m_threat_direct_bg))
     {
         m_public_ip_direct_bg = ip; m_place_direct_bg = place; m_isp_direct_bg = isp; any_ok = true;
         LogInfo(L"UpdateIpInfoNow: Direct IP fetch success: %s [%s]", ip.c_str(), place.c_str());
     }
     else
     {
-        m_public_ip_direct_bg.clear(); m_place_direct_bg = place; m_isp_direct_bg.clear();
+        m_public_ip_direct_bg.clear(); m_place_direct_bg = place; m_isp_direct_bg.clear(); m_threat_direct_bg = IpThreatInfo{};
         LogInfo(L"UpdateIpInfoNow: Direct IP fetch failed: %s", place.c_str());
     }
 
@@ -561,20 +614,20 @@ void CDataManager::UpdateIpInfoNow()
     if (m_setting_data.use_proxy)
     {
         LogInfo(L"UpdateIpInfoNow: Fetching proxy IP using URL: %s via proxy: %s", m_setting_data.api_foreign_url.c_str(), m_setting_data.proxy_address.c_str());
-        if (FetchIpInfoByUrl(m_setting_data.api_foreign_url, true, place, ip, isp))
+        if (FetchIpInfoByUrl(m_setting_data.api_foreign_url, true, place, ip, isp, m_threat_proxy_bg))
         {
             m_public_ip_proxy_bg = ip; m_place_proxy_bg = place; m_isp_proxy_bg = isp; any_ok = true;
             LogInfo(L"UpdateIpInfoNow: Proxy IP fetch success: %s [%s]", ip.c_str(), place.c_str());
         }
         else
         {
-            m_public_ip_proxy_bg.clear(); m_place_proxy_bg = place; m_isp_proxy_bg.clear();
+            m_public_ip_proxy_bg.clear(); m_place_proxy_bg = place; m_isp_proxy_bg.clear(); m_threat_proxy_bg = IpThreatInfo{};
             LogInfo(L"UpdateIpInfoNow: Proxy IP fetch failed: %s", place.c_str());
         }
     }
     else
     {
-        m_public_ip_proxy_bg.clear(); m_place_proxy_bg.clear(); m_isp_proxy_bg.clear();
+        m_public_ip_proxy_bg.clear(); m_place_proxy_bg.clear(); m_isp_proxy_bg.clear(); m_threat_proxy_bg = IpThreatInfo{};
     }
 
     // 测试延迟
@@ -651,6 +704,8 @@ void CDataManager::SwapBuffers()
     m_latency_results = m_latency_results_bg;
     m_tooltip = m_tooltip_bg;
     m_ip_region_display = m_ip_region_display_bg;
+    m_threat_direct = m_threat_direct_bg;
+    m_threat_proxy = m_threat_proxy_bg;
 
     m_has_new_data = false;
     LogInfo(L"SwapBuffers: Double-buffered data swapped to UI thread safely.");
