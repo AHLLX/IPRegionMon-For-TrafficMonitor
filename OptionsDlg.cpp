@@ -55,11 +55,9 @@ void CProxyApiPage::OnBnClickedUseProxyCheck()
 void CProxyApiPage::OnBnClickedRefreshNow()
 {
     // 即时生效并刷新
-    // 我们先把当前输入的数据更新到临时结构里，但不破坏取消操作（由于只是触发一次刷新，也可以直接调起任务）
-    // 为了简单，我们发送自定义消息给主进程或者直接设置一个标志位
-    // 不过在此简单调用：
-    CDataManager::Instance().UpdateIpInfoNow();
-    SetDlgItemText(IDC_STATUS_STATIC, L"已触发后台刷新，请稍后查看状态页...");
+    // 强制后台异步刷新，避免阻塞UI线程！
+    CDataManager::Instance().ForceUpdateAsync();
+    SetDlgItemText(IDC_STATUS_STATIC, L"已触发后台异步刷新，请稍后查看状态页...");
 }
 
 // =========================================================

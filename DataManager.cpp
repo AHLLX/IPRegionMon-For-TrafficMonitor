@@ -672,9 +672,14 @@ void CDataManager::UpdateIpInfoIfNeeded()
     if (m_last_ip_update_tick != 0 && (now - m_last_ip_update_tick) < m_ip_update_interval_ms)
         return;
 
+    ForceUpdateAsync();
+}
+
+void CDataManager::ForceUpdateAsync()
+{
     if (m_is_updating) return;
 
-    LogInfo(L"UpdateIpInfoIfNeeded: Spawning asynchronous update thread.");
+    LogInfo(L"ForceUpdateAsync: Spawning asynchronous update thread.");
     m_is_updating = true;
     std::thread([this]() {
         UpdateIpInfoNow();

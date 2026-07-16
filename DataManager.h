@@ -59,16 +59,12 @@ public:
     void SaveConfig() const;
     const wchar_t* StringRes(UINT id);      //根据资源id获取一个字符串资源
 
-    // 按时间间隔更新公网IP与地区信息
-    void UpdateIpInfoIfNeeded();
-    // 立即更新（忽略间隔）
-    void UpdateIpInfoNow();
-
-    // 获取状态展示字符串（用于对话框显示）
+    void UpdateIpInfoNow();         // 立即获取信息并测速（同步执行，勿在UI线程调用）
+    void UpdateIpInfoIfNeeded();    // 节流定时获取，适合在计时器中调用
+    void ForceUpdateAsync();        // 强制启动后台异步刷新（供UI按钮调用）
     std::wstring GetLastUpdateStatusString() const;
+    void SwapBuffers();             // 将后台缓冲数据同步到主线程使用
 
-    // 将后台缓存的数据安全地同步到前台（必须在 UI 线程调用）
-    void SwapBuffers();
     // 写入日志到 IPRegionMon_debug.log
     void LogInfo(const wchar_t* format, ...);
 
