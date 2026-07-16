@@ -102,6 +102,8 @@ BEGIN_MESSAGE_MAP(CLatencyListPage, CDialog)
     ON_BN_CLICKED(IDC_LATENCY_ADD_BUTTON, &CLatencyListPage::OnBnClickedAdd)
     ON_BN_CLICKED(IDC_LATENCY_EDIT_BUTTON, &CLatencyListPage::OnBnClickedEdit)
     ON_BN_CLICKED(IDC_LATENCY_DEL_BUTTON, &CLatencyListPage::OnBnClickedDel)
+    ON_NOTIFY(HDN_BEGINTRACKW, 0, &CLatencyListPage::OnHdnBeginTrack)
+    ON_NOTIFY(HDN_BEGINTRACKA, 0, &CLatencyListPage::OnHdnBeginTrack)
 END_MESSAGE_MAP()
 
 BOOL CLatencyListPage::OnInitDialog()
@@ -109,8 +111,8 @@ BOOL CLatencyListPage::OnInitDialog()
     CDialog::OnInitDialog();
 
     m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-    m_list.InsertColumn(0, L"别名 (Name)", LVCFMT_LEFT, 100);
-    m_list.InsertColumn(1, L"测试地址 (URL/Host)", LVCFMT_LEFT, 200);
+    m_list.InsertColumn(0, L"别名 (Name)", LVCFMT_LEFT, 120);
+    m_list.InsertColumn(1, L"测试地址 (URL/Host)", LVCFMT_LEFT, 350);
 
     RefreshList();
     return TRUE;
@@ -168,6 +170,12 @@ void CLatencyListPage::OnBnClickedDel()
     int idx = m_list.GetNextSelectedItem(pos);
     m_targets.erase(m_targets.begin() + idx);
     RefreshList();
+}
+
+void CLatencyListPage::OnHdnBeginTrack(NMHDR *pNMHDR, LRESULT *pResult)
+{
+    // 阻止用户拖拽改变列宽，以防止在 TrafficMonitor 的全局鼠标钩子下产生卡死/死循环
+    *pResult = TRUE;
 }
 
 

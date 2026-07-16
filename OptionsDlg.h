@@ -61,6 +61,7 @@ protected:
     afx_msg void OnBnClickedAdd();
     afx_msg void OnBnClickedEdit();
     afx_msg void OnBnClickedDel();
+    afx_msg void OnHdnBeginTrack(NMHDR *pNMHDR, LRESULT *pResult);
     DECLARE_MESSAGE_MAP()
 };
 
