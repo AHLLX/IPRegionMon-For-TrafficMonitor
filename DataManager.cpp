@@ -665,6 +665,24 @@ void CDataManager::UpdateIpInfoNow()
     inside_update = false;
 }
 
+bool CDataManager::IsUpdating() const
+{
+    return m_is_updating;
+}
+
+void CDataManager::_ThreadProc()
+{
+    UpdateIpInfoNow();
+    m_is_updating = false;
+}
+
+static UINT __cdecl BgUpdateThreadProc(LPVOID pParam)
+{
+    CDataManager* pThis = (CDataManager*)pParam;
+    pThis->_ThreadProc();
+    return 0;
+}
+
 void CDataManager::UpdateIpInfoIfNeeded()
 {
     m_ip_update_interval_ms = (unsigned int)m_setting_data.refresh_interval_sec * 1000u;
@@ -681,10 +699,7 @@ void CDataManager::ForceUpdateAsync()
 
     LogInfo(L"ForceUpdateAsync: Spawning asynchronous update thread.");
     m_is_updating = true;
-    std::thread([this]() {
-        UpdateIpInfoNow();
-        m_is_updating = false;
-    }).detach();
+    AfxBeginThread(BgUpdateThreadProc, this);
 }
 
 std::wstring CDataManager::GetLastUpdateStatusString() const

@@ -27,6 +27,7 @@ protected:
     virtual BOOL OnInitDialog();
     virtual void OnOK() {}
     virtual void OnCancel() {}
+    afx_msg void OnTimer(UINT_PTR nIDEvent);
     afx_msg void OnBnClickedUseProxyCheck();
     afx_msg void OnBnClickedRefreshNow();
     DECLARE_MESSAGE_MAP()

@@ -62,6 +62,8 @@ public:
     void UpdateIpInfoNow();         // 立即获取信息并测速（同步执行，勿在UI线程调用）
     void UpdateIpInfoIfNeeded();    // 节流定时获取，适合在计时器中调用
     void ForceUpdateAsync();        // 强制启动后台异步刷新（供UI按钮调用）
+    bool IsUpdating() const;        // 是否正在后台刷新
+    void _ThreadProc();             // 内部供线程调用
     std::wstring GetLastUpdateStatusString() const;
     void SwapBuffers();             // 将后台缓冲数据同步到主线程使用
 

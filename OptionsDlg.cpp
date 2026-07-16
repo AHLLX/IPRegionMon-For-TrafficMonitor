@@ -26,6 +26,7 @@ void CProxyApiPage::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CProxyApiPage, CDialog)
     ON_BN_CLICKED(IDC_USE_PROXY_CHECK, &CProxyApiPage::OnBnClickedUseProxyCheck)
     ON_BN_CLICKED(IDC_REFRESH_NOW_BUTTON, &CProxyApiPage::OnBnClickedRefreshNow)
+    ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 BOOL CProxyApiPage::OnInitDialog()
@@ -39,6 +40,8 @@ BOOL CProxyApiPage::OnInitDialog()
     SetDlgItemInt(IDC_REFRESH_INTERVAL_EDIT, m_data.refresh_interval_sec, FALSE);
 
     OnBnClickedUseProxyCheck(); // 更新控件可用性
+
+    SetTimer(1, 500, NULL); // 启动500ms定时器用于检测后台刷新状态
     return TRUE;
 }
 
@@ -57,7 +60,25 @@ void CProxyApiPage::OnBnClickedRefreshNow()
     // 即时生效并刷新
     // 强制后台异步刷新，避免阻塞UI线程！
     CDataManager::Instance().ForceUpdateAsync();
-    SetDlgItemText(IDC_STATUS_STATIC, L"已触发后台异步刷新，请稍后查看状态页...");
+    SetDlgItemText(IDC_STATUS_STATIC, L"正在后台获取 IP 与测速，请稍候...");
+}
+
+void CProxyApiPage::OnTimer(UINT_PTR nIDEvent)
+{
+    if (nIDEvent == 1)
+    {
+        // 尝试交换缓冲区（如果在弹窗期间 TM主程序没有调用 SwapBuffers 的话，我们在这里主动交换）
+        CDataManager::Instance().SwapBuffers();
+        
+        static bool s_was_updating = false;
+        bool is_updating = CDataManager::Instance().IsUpdating();
+        if (s_was_updating && !is_updating)
+        {
+            SetDlgItemText(IDC_STATUS_STATIC, L"后台刷新已完成！您可以前往“当前状态”页查看最新报告。");
+        }
+        s_was_updating = is_updating;
+    }
+    CDialog::OnTimer(nIDEvent);
 }
 
 // =========================================================
