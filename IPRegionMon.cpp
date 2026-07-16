@@ -42,14 +42,12 @@ const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
     }
 }
 
-#include "OptionsDlg.h"
-
 ITMPlugin::OptionReturn CIPRegionMon::ShowOptionsDialog(void* hParent)
 {
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    COptionsDlg dlg(CWnd::FromHandle((HWND)hParent));
-    if (dlg.DoModal() == IDOK)
-        return ITMPlugin::OR_OPTION_CHANGED;
+    MessageBox(CWnd::FromHandle((HWND)hParent)->GetSafeHwnd(), 
+        L"此插件已移除配置界面以确保极致稳定，请直接修改插件目录下的 IPRegionMon.ini 文件来更改配置，修改后重启 TrafficMonitor 即可生效。", 
+        L"配置提示", MB_OK | MB_ICONINFORMATION);
     return ITMPlugin::OR_OPTION_UNCHANGED;
 }
 

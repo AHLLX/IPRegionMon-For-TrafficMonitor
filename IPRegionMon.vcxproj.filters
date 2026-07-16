@@ -30,15 +30,11 @@
     <ClInclude Include="resource.h">
       <Filter>头文件</Filter>
     </ClInclude>
-      <Filter>头文件</Filter>
-    </ClInclude>
+
     <ClInclude Include="CustomDrawItem.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="IPRegionMon.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="OptionsDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -49,12 +45,7 @@
     <ClCompile Include="DataManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="IPRegionMon.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="OptionsDlg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CustomDrawItem.cpp">
