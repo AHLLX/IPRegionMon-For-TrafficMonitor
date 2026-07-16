@@ -9,10 +9,10 @@
 // =========================================================
 // CProxyApiPage
 // =========================================================
-IMPLEMENT_DYNAMIC(CProxyApiPage, CDialogEx)
+IMPLEMENT_DYNAMIC(CProxyApiPage, CDialog)
 
 CProxyApiPage::CProxyApiPage(CWnd* pParent /*=nullptr*/)
-    : CDialogEx(IDD_TAB_PROXY_API, pParent)
+    : CDialog(IDD_TAB_PROXY_API, pParent)
 {
 }
 
@@ -20,17 +20,17 @@ CProxyApiPage::~CProxyApiPage() {}
 
 void CProxyApiPage::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
 }
 
-BEGIN_MESSAGE_MAP(CProxyApiPage, CDialogEx)
+BEGIN_MESSAGE_MAP(CProxyApiPage, CDialog)
     ON_BN_CLICKED(IDC_USE_PROXY_CHECK, &CProxyApiPage::OnBnClickedUseProxyCheck)
     ON_BN_CLICKED(IDC_REFRESH_NOW_BUTTON, &CProxyApiPage::OnBnClickedRefreshNow)
 END_MESSAGE_MAP()
 
 BOOL CProxyApiPage::OnInitDialog()
 {
-    CDialogEx::OnInitDialog();
+    CDialog::OnInitDialog();
 
     CheckDlgButton(IDC_USE_PROXY_CHECK, m_data.use_proxy ? BST_CHECKED : BST_UNCHECKED);
     SetDlgItemText(IDC_PROXY_EDIT, m_data.proxy_address.c_str());
@@ -65,28 +65,28 @@ void CProxyApiPage::OnBnClickedRefreshNow()
 // =========================================================
 // CLatencyEditDlg
 // =========================================================
-IMPLEMENT_DYNAMIC(CLatencyEditDlg, CDialogEx)
-CLatencyEditDlg::CLatencyEditDlg(CWnd* pParent) : CDialogEx(IDD_LATENCY_EDIT_DIALOG, pParent) {}
+IMPLEMENT_DYNAMIC(CLatencyEditDlg, CDialog)
+CLatencyEditDlg::CLatencyEditDlg(CWnd* pParent) : CDialog(IDD_LATENCY_EDIT_DIALOG, pParent) {}
 CLatencyEditDlg::~CLatencyEditDlg() {}
 
 void CLatencyEditDlg::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
     DDX_Text(pDX, IDC_LATENCY_NAME_EDIT, m_strName);
     DDX_Text(pDX, IDC_LATENCY_URL_EDIT, m_strUrl);
 }
 
-BEGIN_MESSAGE_MAP(CLatencyEditDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(CLatencyEditDlg, CDialog)
 END_MESSAGE_MAP()
 
 
 // =========================================================
 // CLatencyListPage
 // =========================================================
-IMPLEMENT_DYNAMIC(CLatencyListPage, CDialogEx)
+IMPLEMENT_DYNAMIC(CLatencyListPage, CDialog)
 
 CLatencyListPage::CLatencyListPage(CWnd* pParent)
-    : CDialogEx(IDD_TAB_LATENCY_LIST, pParent)
+    : CDialog(IDD_TAB_LATENCY_LIST, pParent)
 {
 }
 
@@ -94,11 +94,11 @@ CLatencyListPage::~CLatencyListPage() {}
 
 void CLatencyListPage::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
     DDX_Control(pDX, IDC_LATENCY_LIST, m_list);
 }
 
-BEGIN_MESSAGE_MAP(CLatencyListPage, CDialogEx)
+BEGIN_MESSAGE_MAP(CLatencyListPage, CDialog)
     ON_BN_CLICKED(IDC_LATENCY_ADD_BUTTON, &CLatencyListPage::OnBnClickedAdd)
     ON_BN_CLICKED(IDC_LATENCY_EDIT_BUTTON, &CLatencyListPage::OnBnClickedEdit)
     ON_BN_CLICKED(IDC_LATENCY_DEL_BUTTON, &CLatencyListPage::OnBnClickedDel)
@@ -106,7 +106,7 @@ END_MESSAGE_MAP()
 
 BOOL CLatencyListPage::OnInitDialog()
 {
-    CDialogEx::OnInitDialog();
+    CDialog::OnInitDialog();
 
     m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
     m_list.InsertColumn(0, L"别名 (Name)", LVCFMT_LEFT, 100);
@@ -174,10 +174,10 @@ void CLatencyListPage::OnBnClickedDel()
 // =========================================================
 // CStatusInfoPage
 // =========================================================
-IMPLEMENT_DYNAMIC(CStatusInfoPage, CDialogEx)
+IMPLEMENT_DYNAMIC(CStatusInfoPage, CDialog)
 
 CStatusInfoPage::CStatusInfoPage(CWnd* pParent)
-    : CDialogEx(IDD_TAB_STATUS_INFO, pParent)
+    : CDialog(IDD_TAB_STATUS_INFO, pParent)
 {
 }
 
@@ -185,15 +185,15 @@ CStatusInfoPage::~CStatusInfoPage() {}
 
 void CStatusInfoPage::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
 }
 
-BEGIN_MESSAGE_MAP(CStatusInfoPage, CDialogEx)
+BEGIN_MESSAGE_MAP(CStatusInfoPage, CDialog)
 END_MESSAGE_MAP()
 
 BOOL CStatusInfoPage::OnInitDialog()
 {
-    CDialogEx::OnInitDialog();
+    CDialog::OnInitDialog();
     RefreshReport();
     return TRUE;
 }
@@ -225,10 +225,10 @@ void CStatusInfoPage::RefreshReport()
 // =========================================================
 // COptionsDlg
 // =========================================================
-IMPLEMENT_DYNAMIC(COptionsDlg, CDialogEx)
+IMPLEMENT_DYNAMIC(COptionsDlg, CDialog)
 
 COptionsDlg::COptionsDlg(CWnd* pParent /*=nullptr*/)
-    : CDialogEx(IDD_OPTIONS_DIALOG, pParent)
+    : CDialog(IDD_OPTIONS_DIALOG, pParent)
 {
 }
 
@@ -238,17 +238,17 @@ COptionsDlg::~COptionsDlg()
 
 void COptionsDlg::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
     DDX_Control(pDX, IDC_TAB_MAIN, m_tab);
 }
 
-BEGIN_MESSAGE_MAP(COptionsDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(COptionsDlg, CDialog)
     ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_MAIN, &COptionsDlg::OnTcnSelchangeTabMain)
 END_MESSAGE_MAP()
 
 BOOL COptionsDlg::OnInitDialog()
 {
-    CDialogEx::OnInitDialog();
+    CDialog::OnInitDialog();
 
     // 1. 拷贝现有数据给子页
     m_pageProxyApi.m_data = CDataManager::Instance().m_setting_data;
@@ -334,5 +334,5 @@ void COptionsDlg::OnOK()
     CDataManager::Instance().m_setting_data.latency_targets = m_pageLatencyList.m_targets;
     CDataManager::Instance().SaveConfig();
 
-    CDialogEx::OnOK();
+    CDialog::OnOK();
 }

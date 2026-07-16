@@ -1,13 +1,14 @@
 #pragma once
 
-#include "afxdialogex.h"
+#include "afxwin.h"
+#include "afxcmn.h"
 #include "resource.h"
 #include "DataManager.h"
 
 // =========================================================
 // CProxyApiPage - 常规网络设置页面
 // =========================================================
-class CProxyApiPage : public CDialogEx
+class CProxyApiPage : public CDialog
 {
     DECLARE_DYNAMIC(CProxyApiPage)
 public:
@@ -24,6 +25,8 @@ public:
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
     virtual BOOL OnInitDialog();
+    virtual void OnOK() {}
+    virtual void OnCancel() {}
     afx_msg void OnBnClickedUseProxyCheck();
     afx_msg void OnBnClickedRefreshNow();
     DECLARE_MESSAGE_MAP()
@@ -32,7 +35,7 @@ protected:
 // =========================================================
 // CLatencyListPage - 延迟目标列表页面
 // =========================================================
-class CLatencyListPage : public CDialogEx
+class CLatencyListPage : public CDialog
 {
     DECLARE_DYNAMIC(CLatencyListPage)
 public:
@@ -52,6 +55,8 @@ private:
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
     virtual BOOL OnInitDialog();
+    virtual void OnOK() {}
+    virtual void OnCancel() {}
     void RefreshList();
     afx_msg void OnBnClickedAdd();
     afx_msg void OnBnClickedEdit();
@@ -62,7 +67,7 @@ protected:
 // =========================================================
 // CStatusInfoPage - 纯净度及泄漏报告页面
 // =========================================================
-class CStatusInfoPage : public CDialogEx
+class CStatusInfoPage : public CDialog
 {
     DECLARE_DYNAMIC(CStatusInfoPage)
 public:
@@ -78,6 +83,8 @@ public:
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
     virtual BOOL OnInitDialog();
+    virtual void OnOK() {}
+    virtual void OnCancel() {}
     DECLARE_MESSAGE_MAP()
 };
 
@@ -85,7 +92,7 @@ protected:
 // =========================================================
 // COptionsDlg - 主设置对话框
 // =========================================================
-class COptionsDlg : public CDialogEx
+class COptionsDlg : public CDialog
 {
     DECLARE_DYNAMIC(COptionsDlg)
 
@@ -103,7 +110,7 @@ private:
     CLatencyListPage m_pageLatencyList;
     CStatusInfoPage m_pageStatusInfo;
     
-    std::vector<CDialogEx*> m_pages;
+    std::vector<CDialog*> m_pages;
 
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
@@ -116,7 +123,7 @@ protected:
 // =========================================================
 // CLatencyEditDlg - 简单的编辑弹窗
 // =========================================================
-class CLatencyEditDlg : public CDialogEx
+class CLatencyEditDlg : public CDialog
 {
     DECLARE_DYNAMIC(CLatencyEditDlg)
 public:
