@@ -74,9 +74,10 @@ public:
 #endif
 
 public:
-    virtual BOOL OnInitDialog();
+    void RefreshReport();
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
+    virtual BOOL OnInitDialog();
     DECLARE_MESSAGE_MAP()
 };
 

@@ -45,7 +45,11 @@ BOOL CProxyApiPage::OnInitDialog()
 void CProxyApiPage::OnBnClickedUseProxyCheck()
 {
     BOOL useProxy = (IsDlgButtonChecked(IDC_USE_PROXY_CHECK) == BST_CHECKED);
-    GetDlgItem(IDC_PROXY_EDIT)->EnableWindow(useProxy);
+    CWnd* pEdit = GetDlgItem(IDC_PROXY_EDIT);
+    if (pEdit)
+    {
+        pEdit->EnableWindow(useProxy);
+    }
 }
 
 void CProxyApiPage::OnBnClickedRefreshNow()
@@ -190,7 +194,12 @@ END_MESSAGE_MAP()
 BOOL CStatusInfoPage::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
+    RefreshReport();
+    return TRUE;
+}
 
+void CStatusInfoPage::RefreshReport()
+{
     // 抓取当前最新的 Tooltip 以及延迟信息作为报告
     std::wstring report = L"【安全状态与网络类型报告】\r\n";
     report += CDataManager::Instance().m_tooltip;
@@ -206,8 +215,10 @@ BOOL CStatusInfoPage::OnInitDialog()
 
     report += L"\r\n(提示：此状态为后台异步刷新数据。如果数据为空，请先在常规设置页面点击“立即刷新”)";
 
-    SetDlgItemText(IDC_STATUS_INFO_EDIT, report.c_str());
-    return TRUE;
+    if (GetSafeHwnd())
+    {
+        SetDlgItemText(IDC_STATUS_INFO_EDIT, report.c_str());
+    }
 }
 
 
@@ -292,7 +303,7 @@ void COptionsDlg::OnTcnSelchangeTabMain(NMHDR *pNMHDR, LRESULT *pResult)
     // 如果切到了状态页，强制刷新一次显示
     if (sel == 2)
     {
-        m_pageStatusInfo.OnInitDialog(); // 重新加载报告文本
+        m_pageStatusInfo.RefreshReport(); // 重新加载报告文本
     }
 
     *pResult = 0;
