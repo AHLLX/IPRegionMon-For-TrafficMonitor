@@ -509,155 +509,137 @@ static void AppendWrappedList(std::wstring& out, const std::vector<std::pair<std
     }
 }
 
-void CDataManager::UpdateStatusStrings(bool updated, bool is_domestic)
-{
-    if (!updated) { m_tooltip_bg.clear(); return; }
 
-    SYSTEMTIME st{}; GetLocalTime(&st); m_last_update_time = st;
-    wchar_t tb[64]{}; swprintf_s(tb, L"%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-    m_last_source_domestic = is_domestic;
-
-    auto FormatThreatStr = [](const IpThreatInfo& t) -> std::wstring {
-        std::wstring type = L"未知类型";
-        if (t.is_mobile) type = L"移动网络";
-        else if (t.is_datacenter) type = L"数据中心/机房";
-        else type = L"家庭宽带";
-
-        if (t.is_vpn || t.is_proxy || t.is_tor) {
-            type += L" (";
-            if (t.is_vpn) type += L"VPN/";
-            if (t.is_proxy) type += L"代理/";
-            if (t.is_tor) type += L"Tor/";
-            type.pop_back(); type += L")";
-        }
-
-        std::wstring status = t.is_abuser ? L"恶意/黑名单" : L"纯净";
-        if (!t.risk_score.empty()) { status += L" (分数: "; status += t.risk_score; status += L")"; }
-        return L"    类型: " + type + L" | 状态: " + status + L"\n";
-    };
-
-    // 鼠标提示：直/代 + 地区
-    m_tooltip_bg.clear();
-    if (!m_public_ip_direct_bg.empty())
-    {
-        m_tooltip_bg += L"直: ";
-        m_tooltip_bg += m_public_ip_direct_bg;
-        if (!m_place_direct_bg.empty()) { m_tooltip_bg += L"  ["; m_tooltip_bg += m_place_direct_bg; m_tooltip_bg += L"]"; }
-        if (!m_isp_direct_bg.empty())   { m_tooltip_bg += L"  "; m_tooltip_bg += m_isp_direct_bg; }
-        m_tooltip_bg += L"\n";
-        m_tooltip_bg += FormatThreatStr(m_threat_direct_bg);
-    }
-    if (!m_public_ip_proxy_bg.empty())
-    {
-        m_tooltip_bg += L"代: ";
-        m_tooltip_bg += m_public_ip_proxy_bg;
-        if (!m_place_proxy_bg.empty()) { m_tooltip_bg += L"  ["; m_tooltip_bg += m_place_proxy_bg; m_tooltip_bg += L"]"; }
-        if (!m_isp_proxy_bg.empty())   { m_tooltip_bg += L"  "; m_tooltip_bg += m_isp_proxy_bg; }
-        m_tooltip_bg += L"\n";
-        m_tooltip_bg += FormatThreatStr(m_threat_proxy_bg);
-    }
-
-    // 若未启用代理，给出提示
-    if (!m_setting_data.use_proxy)
-    {
-        m_tooltip_bg += L"（未使用代理）\n";
-    }
-
-    // 延迟：按“直: 名称 - xxms | ...”和“代: 名称 - xxms | ...”，每行固定数量避免超长
-    if (!m_latency_results_bg.empty())
-    {
-        std::vector<std::pair<std::wstring,int>> ds, ps;
-        for (const auto& it : m_latency_results_bg)
-        {
-            if (it.direct_ms >= 0) ds.emplace_back(it.name.empty()?L"目标":it.name, (int)(it.direct_ms+0.5));
-            if (it.proxy_ms  >= 0) ps.emplace_back(it.name.empty()?L"目标":it.name, (int)(it.proxy_ms +0.5));
-        }
-        m_tooltip_bg += L"延迟:\n";
-        AppendWrappedList(m_tooltip_bg, ds, L"直: ", 3); // 每行最多3项
-        if (m_setting_data.use_proxy)
-            AppendWrappedList(m_tooltip_bg, ps, L"代: ", 3);
-        else
-            m_tooltip_bg += L"代: -\n";
-    }
-
-    m_tooltip_bg += L"最后更新时间: "; m_tooltip_bg += tb;
-}
 
 void CDataManager::UpdateIpInfoNow()
 {
     static std::atomic<bool> inside_update{ false };
-    if (inside_update.exchange(true))
-    {
-        LogInfo(L"UpdateIpInfoNow: Update already in progress inside another thread, skipping.");
-        return;
-    }
+    if (inside_update.exchange(true)) return;
 
     LogInfo(L"UpdateIpInfoNow: Background update thread started.");
 
-    std::wstring place, ip, isp;
+    std::wstring l_public_ip_direct, l_place_direct, l_isp_direct;
+    IpThreatInfo l_threat_direct;
+    std::wstring l_public_ip_proxy, l_place_proxy, l_isp_proxy;
+    IpThreatInfo l_threat_proxy;
+    std::vector<LatencyResult> l_latency;
+    std::wstring l_tooltip, l_ip_region_display;
     bool any_ok = false;
 
-    // 直连（绕过系统代理）
-    LogInfo(L"UpdateIpInfoNow: Fetching direct IP using URL: %s", m_setting_data.api_domestic_url.c_str());
-    if (FetchIpInfoByUrl(m_setting_data.api_domestic_url, false, place, ip, isp, m_threat_direct_bg))
+    // 直连
+    LogInfo(L"UpdateIpInfoNow: Fetching direct IP...");
+    if (FetchIpInfoByUrl(m_setting_data.api_domestic_url, false, l_place_direct, l_public_ip_direct, l_isp_direct, l_threat_direct))
     {
-        m_public_ip_direct_bg = ip; m_place_direct_bg = place; m_isp_direct_bg = isp; any_ok = true;
-        LogInfo(L"UpdateIpInfoNow: Direct IP fetch success: %s [%s]", ip.c_str(), place.c_str());
+        any_ok = true;
     }
     else
     {
-        m_public_ip_direct_bg.clear(); m_place_direct_bg = place; m_isp_direct_bg.clear(); m_threat_direct_bg = IpThreatInfo{};
-        LogInfo(L"UpdateIpInfoNow: Direct IP fetch failed: %s", place.c_str());
+        l_public_ip_direct.clear(); l_isp_direct.clear(); l_threat_direct = IpThreatInfo{};
     }
 
     // 代理
     if (m_setting_data.use_proxy)
     {
-        LogInfo(L"UpdateIpInfoNow: Fetching proxy IP using URL: %s via proxy: %s", m_setting_data.api_foreign_url.c_str(), m_setting_data.proxy_address.c_str());
-        if (FetchIpInfoByUrl(m_setting_data.api_foreign_url, true, place, ip, isp, m_threat_proxy_bg))
+        LogInfo(L"UpdateIpInfoNow: Fetching proxy IP...");
+        if (FetchIpInfoByUrl(m_setting_data.api_foreign_url, true, l_place_proxy, l_public_ip_proxy, l_isp_proxy, l_threat_proxy))
         {
-            m_public_ip_proxy_bg = ip; m_place_proxy_bg = place; m_isp_proxy_bg = isp; any_ok = true;
-            LogInfo(L"UpdateIpInfoNow: Proxy IP fetch success: %s [%s]", ip.c_str(), place.c_str());
+            any_ok = true;
         }
         else
         {
-            m_public_ip_proxy_bg.clear(); m_place_proxy_bg = place; m_isp_proxy_bg.clear(); m_threat_proxy_bg = IpThreatInfo{};
-            LogInfo(L"UpdateIpInfoNow: Proxy IP fetch failed: %s", place.c_str());
+            l_public_ip_proxy.clear(); l_isp_proxy.clear(); l_threat_proxy = IpThreatInfo{};
         }
-    }
-    else
-    {
-        m_public_ip_proxy_bg.clear(); m_place_proxy_bg.clear(); m_isp_proxy_bg.clear(); m_threat_proxy_bg = IpThreatInfo{};
     }
 
     // 测试延迟
-    m_latency_results_bg.clear();
     std::vector<LatencyTarget> targets = m_setting_data.latency_targets;
     if (targets.empty()) targets.push_back({ L"中国", L"https://www.baidu.com" });
-    LogInfo(L"UpdateIpInfoNow: Testing latencies for %d targets.", (int)targets.size());
     for (const auto& tgt : targets)
     {
         LatencyResult r; r.name = tgt.name.empty() ? tgt.url : tgt.name;
         MeasureLatencyMs(tgt.url, L"", true, r.direct_ms);
         if (m_setting_data.use_proxy)
             MeasureLatencyMs(tgt.url, m_setting_data.proxy_address, false, r.proxy_ms);
-        m_latency_results_bg.push_back(r);
-        LogInfo(L"UpdateIpInfoNow: Latency to %s: Direct=%.1fms, Proxy=%.1fms", r.name.c_str(), r.direct_ms, r.proxy_ms);
+        l_latency.push_back(r);
     }
 
-    // 任务栏显示文本构造
-    m_ip_region_display_bg.clear();
-    if (!m_place_direct_bg.empty()) { m_ip_region_display_bg += L"直:"; m_ip_region_display_bg += m_place_direct_bg; }
-    else if (!m_public_ip_direct_bg.empty()) { m_ip_region_display_bg += L"直:"; m_ip_region_display_bg += m_public_ip_direct_bg; }
-    if (!m_place_proxy_bg.empty()) { if (!m_ip_region_display_bg.empty()) m_ip_region_display_bg += L" | "; m_ip_region_display_bg += L"代:"; m_ip_region_display_bg += m_place_proxy_bg; }
-    else if (!m_public_ip_proxy_bg.empty()) { if (!m_ip_region_display_bg.empty()) m_ip_region_display_bg += L" | "; m_ip_region_display_bg += L"代:"; m_ip_region_display_bg += m_public_ip_proxy_bg; }
+    // 任务栏显示文本
+    if (!l_place_direct.empty()) { l_ip_region_display += L"直:"; l_ip_region_display += l_place_direct; }
+    else if (!l_public_ip_direct.empty()) { l_ip_region_display += L"直:"; l_ip_region_display += l_public_ip_direct; }
+    if (!l_place_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += L"代:"; l_ip_region_display += l_place_proxy; }
+    else if (!l_public_ip_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += L"代:"; l_ip_region_display += l_public_ip_proxy; }
+
+    // 构造 Tooltip
+    auto FormatThreatStr = [](const IpThreatInfo& t) -> std::wstring {
+        std::wstring type = L"未知类型";
+        if (t.is_mobile) type = L"移动网络";
+        else if (t.is_datacenter) type = L"数据中心/机房";
+        else type = L"家庭宽带";
+        if (t.is_vpn || t.is_proxy || t.is_tor) {
+            type += L" ("; if (t.is_vpn) type += L"VPN/"; if (t.is_proxy) type += L"代理/"; if (t.is_tor) type += L"Tor/";
+            type.pop_back(); type += L")";
+        }
+        std::wstring status = t.is_abuser ? L"恶意/黑名单" : L"纯净";
+        if (!t.risk_score.empty()) { status += L" (分数: " + t.risk_score + L")"; }
+        return L"    类型: " + type + L" | 状态: " + status + L"\n";
+    };
+
+    if (any_ok)
+    {
+        SYSTEMTIME st{}; GetLocalTime(&st);
+        wchar_t tb[64]{}; swprintf_s(tb, L"%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+        
+        if (!l_public_ip_direct.empty())
+        {
+            l_tooltip += L"直: " + l_public_ip_direct;
+            if (!l_place_direct.empty()) l_tooltip += L"  [" + l_place_direct + L"]";
+            if (!l_isp_direct.empty()) l_tooltip += L"  " + l_isp_direct;
+            l_tooltip += L"\n" + FormatThreatStr(l_threat_direct);
+        }
+        if (!l_public_ip_proxy.empty())
+        {
+            l_tooltip += L"代: " + l_public_ip_proxy;
+            if (!l_place_proxy.empty()) l_tooltip += L"  [" + l_place_proxy + L"]";
+            if (!l_isp_proxy.empty()) l_tooltip += L"  " + l_isp_proxy;
+            l_tooltip += L"\n" + FormatThreatStr(l_threat_proxy);
+        }
+        if (!m_setting_data.use_proxy) l_tooltip += L"（未使用代理）\n";
+
+        if (!l_latency.empty())
+        {
+            std::vector<std::pair<std::wstring,int>> ds, ps;
+            for (const auto& it : l_latency)
+            {
+                if (it.direct_ms >= 0) ds.emplace_back(it.name, (int)(it.direct_ms+0.5));
+                if (it.proxy_ms  >= 0) ps.emplace_back(it.name, (int)(it.proxy_ms +0.5));
+            }
+            l_tooltip += L"延迟:\n";
+            AppendWrappedList(l_tooltip, ds, L"直: ", 3);
+            if (m_setting_data.use_proxy) AppendWrappedList(l_tooltip, ps, L"代: ", 3);
+            else l_tooltip += L"代: -\n";
+        }
+        l_tooltip += L"最后更新时间: "; l_tooltip += tb;
+    }
 
     m_last_ip_update_tick = GetTickCount64();
-    UpdateStatusStrings(any_ok, true);
 
-    // 双缓冲线程同步安全提交
+    // 安全提交：锁定 mutex 并一次性覆盖 _bg 变量
     {
         std::lock_guard<std::mutex> lock(m_swap_mutex);
+        m_public_ip_direct_bg = l_public_ip_direct;
+        m_place_direct_bg = l_place_direct;
+        m_isp_direct_bg = l_isp_direct;
+        m_threat_direct_bg = l_threat_direct;
+        
+        m_public_ip_proxy_bg = l_public_ip_proxy;
+        m_place_proxy_bg = l_place_proxy;
+        m_isp_proxy_bg = l_isp_proxy;
+        m_threat_proxy_bg = l_threat_proxy;
+        
+        m_latency_results_bg = l_latency;
+        m_ip_region_display_bg = l_ip_region_display;
+        m_tooltip_bg = l_tooltip;
+        
         m_has_new_data = true;
     }
 

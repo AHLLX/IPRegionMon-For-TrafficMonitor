@@ -113,8 +113,6 @@ private:
     // 执行一次请求，返回 place（国家/地区/城市组合）、ip、isp、threat
     bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
 
-    void UpdateStatusStrings(bool updated, bool is_domestic);
-
     // 后台缓存变量 (Double Buffering)
     std::wstring m_public_ip_direct_bg;
     std::wstring m_public_ip_proxy_bg;

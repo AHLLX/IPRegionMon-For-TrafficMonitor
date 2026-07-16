@@ -67,9 +67,6 @@ void CProxyApiPage::OnTimer(UINT_PTR nIDEvent)
 {
     if (nIDEvent == 1)
     {
-        // 尝试交换缓冲区（如果在弹窗期间 TM主程序没有调用 SwapBuffers 的话，我们在这里主动交换）
-        CDataManager::Instance().SwapBuffers();
-        
         static bool s_was_updating = false;
         bool is_updating = CDataManager::Instance().IsUpdating();
         if (s_was_updating && !is_updating)
