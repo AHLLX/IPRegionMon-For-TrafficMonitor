@@ -1,4 +1,4 @@
-# IPRegionMon-For-TrafficMonitor
+﻿# IPRegionMon-For-TrafficMonitor
 
 [简体中文](#简体中文) | [English](#english)
 
@@ -39,7 +39,9 @@
     - `延迟:`
     - `直: 名称 - xxms | 名称 - xxms | ...`
     - `代: 名称 - xxms | 名称 - xxms | ...`
-- **UI 自适应**：对话框支持拉伸，控件自动布局，完美兼容中英文系统 Locale 布局。
+- **全新选项界面**：采用紧凑的 3-Tab 标签页布局（常规/网络、延迟目标、当前状态），底层移除 ListCtrl 彻底解决 TrafficMonitor 死锁卡死问题。
+- **纯净度检测**：精准识别 IP 类型（普通宽带、IDC机房、代理、VPN、Tor），防止节点欺骗。
+- **全异步无感刷新**：彻底重构网络请求逻辑为后台线程执行，双缓冲无锁刷新，绝对不卡顿主界面。
 - **配置持久化**：INI 文件保存，中文名称使用 `#u8:HEX` 编码，彻底避免中文逐次截断问题。
 
 ## 安装
@@ -150,7 +152,9 @@ A plugin for TrafficMonitor to display current public IP and location informatio
     - `Latency:`
     - `Direct: Name - xxms | Name - xxms | ...`
     - `Proxy: Name - xxms | Name - xxms | ...`
-- **Responsive UI**: Options dialog supports resizing with automatic control layouts. Fully compatible with both Chinese and English system locales.
+- **New Settings UI**: Uses a compact 3-tab layout (General/Network, Latency Targets, Current Status) and removes ListCtrl to completely fix TrafficMonitor deadlock issues.
+- **IP Purity Detection**: Accurately identifies IP types (Residential, Datacenter, Proxy, VPN, Tor) to prevent node spoofing.
+- **Asynchronous Refresh**: Completely refactored network requests into background threads with double-buffered, lock-free UI updates, ensuring the main interface never freezes.
 - **Persistent Configuration**: Saves to INI files; uses `#u8:HEX` encoding for Chinese characters to fully prevent truncation issues under non-unicode settings.
 
 ## Installation

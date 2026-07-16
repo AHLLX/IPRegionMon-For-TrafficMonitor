@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "IPRegionMon.h"
 #include "DataManager.h"
+#include "OptionsDlg.h"
 
 #include <thread>
 
@@ -45,10 +46,17 @@ const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
 ITMPlugin::OptionReturn CIPRegionMon::ShowOptionsDialog(void* hParent)
 {
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    MessageBox(CWnd::FromHandle((HWND)hParent)->GetSafeHwnd(), 
-        L"此插件已移除配置界面以确保极致稳定，请直接修改插件目录下的 IPRegionMon.ini 文件来更改配置，修改后重启 TrafficMonitor 即可生效。", 
-        L"配置提示", MB_OK | MB_ICONINFORMATION);
-    return ITMPlugin::OR_OPTION_UNCHANGED;
+
+    // 跨模块 HWND 包装：Attach/Detach 创建临时 CWnd 壳，不触碰 MFC 句柄映射
+    CWnd parentWnd;
+    parentWnd.Attach((HWND)hParent);
+    COptionsDlg dlg(&parentWnd);
+    INT_PTR result = dlg.DoModal();
+    parentWnd.Detach(); // 归还所有权，不析构原窗口
+
+    return (result == IDOK)
+        ? ITMPlugin::OR_OPTION_CHANGED
+        : ITMPlugin::OR_OPTION_UNCHANGED;
 }
 
 void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)

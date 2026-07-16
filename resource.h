@@ -66,6 +66,18 @@
 // 在末尾追加基础ID（避免冲突）
 #define IDC_LATENCY_DEL_BASE            1200
 
+// 延迟目标：固定 3 行 Edit 对（替代 SysListView32，彻底规避表头拖拽卡死问题）
+#define IDC_LAT_NAME_0                  1160
+#define IDC_LAT_URL_0                   1161
+#define IDC_LAT_DEL_0                   1162
+#define IDC_LAT_NAME_1                  1163
+#define IDC_LAT_URL_1                   1164
+#define IDC_LAT_DEL_1                   1165
+#define IDC_LAT_NAME_2                  1166
+#define IDC_LAT_URL_2                   1167
+#define IDC_LAT_DEL_2                   1168
+#define IDC_LAT_HINT                    1169
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED

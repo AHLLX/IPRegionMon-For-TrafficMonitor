@@ -154,6 +154,35 @@ static bool GetJsonBoolValue(const std::wstring& json, const wchar_t* key)
     return (val == L"true" || val == L"1");
 }
 
+// 提取 JSON 中 key 对应的完整对象（{ ... }）字符串
+// 用于精确解析两层嵌套字段（如 asn.type），避免跨对象匹配同名字段
+static std::wstring GetJsonObjectValue(const std::wstring& json, const wchar_t* key)
+{
+    std::wstring keyQuoted = L"\"" + std::wstring(key) + L"\"";
+    size_t kpos = json.find(keyQuoted);
+    if (kpos == std::wstring::npos) return L"";
+
+    // 找 ':'
+    size_t colon = json.find(L':', kpos + keyQuoted.size());
+    if (colon == std::wstring::npos) return L"";
+
+    // 跳过空白找 '{'
+    size_t pos = colon + 1;
+    while (pos < json.size() && iswspace(json[pos])) ++pos;
+    if (pos >= json.size() || json[pos] != L'{') return L"";
+
+    // 括号计数找对应 '}'
+    int depth = 1;
+    size_t end = pos + 1;
+    while (end < json.size() && depth > 0)
+    {
+        if      (json[end] == L'{') ++depth;
+        else if (json[end] == L'}') --depth;
+        ++end;
+    }
+    return json.substr(pos, end - pos);   // 返回包含首尾大括号的子串
+}
+
 // 通过 WinHTTP 进行 GET 请求
 // proxy 为空且 no_proxy 为 true 时，强制直连（绕过系统代理）
 static bool HttpGet(const std::wstring& url, const std::wstring& proxy, bool no_proxy, std::string& out)
@@ -278,8 +307,10 @@ static bool MeasureLatencyMs(const std::wstring& url_or_host, const std::wstring
 CDataManager::CDataManager()
 {
     // 默认 API
+    // 直连和代理均使用 ip-api.com：支持 lang=zh-CN 中文显示，含 proxy/hosting 检测字段
+    // 需要更精确的 asn.type 检测时可在设置界面将代理 API 改为 https://api.ipapi.is/
     const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
-    const wchar_t* kForeignApi  = L"https://api.ipapi.is/";
+    const wchar_t* kForeignApi  = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
     m_setting_data.api_domestic_url = kDomesticApi;
     m_setting_data.api_foreign_url  = kForeignApi;
     m_setting_data.use_proxy = false;
@@ -362,9 +393,9 @@ void CDataManager::LoadConfig(const std::wstring& config_dir)
     if (!domestic.empty()) m_setting_data.api_domestic_url = domestic; else if (!m_setting_data.api_url.empty()) m_setting_data.api_domestic_url = m_setting_data.api_url;
     if (!foreign.empty())  m_setting_data.api_foreign_url  = foreign;  else if (!m_setting_data.api_url.empty()) m_setting_data.api_foreign_url  = m_setting_data.api_url;
 
-    // 如果仍为空，回退到默认接口
+    // 如果仍为空，回退到默认接口（均使用 ip-api.com，支持中文显示）
     const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
-    const wchar_t* kForeignApi  = L"https://api.ipapi.is/";
+    const wchar_t* kForeignApi  = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
     if (m_setting_data.api_domestic_url.empty()) m_setting_data.api_domestic_url = kDomesticApi;
     if (m_setting_data.api_foreign_url.empty())  m_setting_data.api_foreign_url  = kForeignApi;
 
@@ -435,26 +466,65 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
     std::wstring message = GetJsonStringValue(w, L"message");
     std::wstring ip = GetJsonStringValue(w, L"query"); if (ip.empty()) ip = GetJsonStringValue(w, L"ip");
     
-    // ipapi.is: location.country
-    std::wstring country = GetJsonStringValue(w, L"country"); if (country.empty()) country = GetJsonStringValue(w, L"country_name");
-    std::wstring region = GetJsonStringValue(w, L"regionName"); if (region.empty()) region = GetJsonStringValue(w, L"region");
-    if (region.empty()) region = GetJsonStringValue(w, L"state");
-    std::wstring city = GetJsonStringValue(w, L"city");
-    
-    // ipapi.is: company.name or asn.org
+    // ── 地理位置解析 ────────────────────────────────────────────────────────
+    // 优先从 ipapi.is 的 location{} 子对象精确提取，避免与 abuse.country 等同名字段冲突
+    // 若 location{} 不存在（ip-api.com 格式），回退到顶层平铺字段
+    std::wstring country, region, city;
+    {
+        std::wstring locObj = GetJsonObjectValue(w, L"location");
+        if (!locObj.empty())
+        {
+            country = GetJsonStringValue(locObj, L"country");
+            region  = GetJsonStringValue(locObj, L"regionName");
+            if (region.empty()) region = GetJsonStringValue(locObj, L"region");
+            if (region.empty()) region = GetJsonStringValue(locObj, L"state");
+            city    = GetJsonStringValue(locObj, L"city");
+        }
+    }
+    // 回退：ip-api.com 平铺格式（regionName, country, city 均在顶层）
+    if (country.empty()) country = GetJsonStringValue(w, L"country");
+    if (country.empty()) country = GetJsonStringValue(w, L"country_name");
+    if (region.empty())  region  = GetJsonStringValue(w, L"regionName");
+    if (region.empty())  region  = GetJsonStringValue(w, L"region");
+    if (region.empty())  region  = GetJsonStringValue(w, L"state");
+    if (city.empty())    city    = GetJsonStringValue(w, L"city");
+
+    // ISP / 运营商名称（兼容 ip-api.com 的 isp 和 ipapi.is 的 company.name / asn.org）
     std::wstring isp = GetJsonStringValue(w, L"isp");
     if (isp.empty()) isp = GetJsonStringValue(w, L"name");
     if (isp.empty()) isp = GetJsonStringValue(w, L"org");
 
-    // 威胁检测字段
+    // ── 威胁检测字段（优先取 API 顶层布尔字段）──────────────────────────────
     out_threat = IpThreatInfo{};
-    out_threat.is_proxy = GetJsonBoolValue(w, L"is_proxy") || GetJsonBoolValue(w, L"proxy");
-    out_threat.is_vpn = GetJsonBoolValue(w, L"is_vpn") || GetJsonBoolValue(w, L"vpn");
+    out_threat.is_proxy      = GetJsonBoolValue(w, L"is_proxy")      || GetJsonBoolValue(w, L"proxy");
+    out_threat.is_vpn        = GetJsonBoolValue(w, L"is_vpn")        || GetJsonBoolValue(w, L"vpn");
     out_threat.is_datacenter = GetJsonBoolValue(w, L"is_datacenter") || GetJsonBoolValue(w, L"hosting");
-    out_threat.is_tor = GetJsonBoolValue(w, L"is_tor") || GetJsonBoolValue(w, L"tor");
-    out_threat.is_mobile = GetJsonBoolValue(w, L"is_mobile") || GetJsonBoolValue(w, L"mobile");
-    out_threat.is_abuser = GetJsonBoolValue(w, L"is_abuser") || GetJsonBoolValue(w, L"abuser");
-    
+    out_threat.is_tor        = GetJsonBoolValue(w, L"is_tor")        || GetJsonBoolValue(w, L"tor");
+    out_threat.is_mobile     = GetJsonBoolValue(w, L"is_mobile")     || GetJsonBoolValue(w, L"mobile");
+    out_threat.is_abuser     = GetJsonBoolValue(w, L"is_abuser")     || GetJsonBoolValue(w, L"abuser");
+
+    // ── ipapi.is: 精确提取 asn{} 对象后读 type 字段 ─────────────────────────
+    // GetJsonObjectValue 确保只在 asn 子对象内查找，不会被 abuse.type 干扰。
+    // 映射关系完全来自 ipapi.is 官方文档定义的 type 枚举值，不含任何自定义关键词：
+    //   "hosting"    → IDC 机房 / 云服务商      "datacenter" → 数据中心
+    //   "cdn"        → CDN 节点（归入机房）       "mobile"     → 移动网络
+    //   "wireless"   → 无线网络（归入移动）
+    //   "isp" / "business" / "education" / "government" → 不设标志（宽带/未知）
+    {
+        std::wstring asnObj = GetJsonObjectValue(w, L"asn");
+        if (!asnObj.empty())
+        {
+            std::wstring asnType = GetJsonStringValue(asnObj, L"type");
+            std::wstring t_lc   = asnType;
+            for (auto& c : t_lc) c = towlower(c);
+
+            if (t_lc == L"hosting" || t_lc == L"datacenter" || t_lc == L"cdn")
+                out_threat.is_datacenter = true;
+            else if (t_lc == L"mobile" || t_lc == L"wireless")
+                out_threat.is_mobile = true;
+        }
+    }
+
     out_threat.risk_score = GetJsonStringValue(w, L"abuser_score");
     if (out_threat.risk_score.empty()) out_threat.risk_score = GetJsonStringValue(w, L"fraud_score");
     if (out_threat.risk_score.empty()) out_threat.risk_score = GetJsonStringValue(w, L"risk");
@@ -476,8 +546,9 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
     out_ip = ip; out_isp = isp;
     std::wstring place;
     if (!country.empty()) place += country;
-    if (!region.empty()) { if (!place.empty()) place += L" "; place += region; }
-    if (!city.empty())   { if (!place.empty()) place += L" "; place += city; }
+    if (!region.empty())  { if (!place.empty()) place += L" "; place += region; }
+    // city 与 region 相同时跳过，避免 "Tokyo Tokyo" 这类重复显示
+    if (!city.empty() && city != region) { if (!place.empty()) place += L" "; place += city; }
     out_place = place;
     return true;
 }
@@ -571,14 +642,16 @@ void CDataManager::UpdateIpInfoNow()
 
     // 构造 Tooltip
     auto FormatThreatStr = [](const IpThreatInfo& t) -> std::wstring {
-        std::wstring type = L"未知类型";
-        if (t.is_mobile) type = L"移动网络";
-        else if (t.is_datacenter) type = L"数据中心/机房";
-        else type = L"家庭宽带";
-        if (t.is_vpn || t.is_proxy || t.is_tor) {
-            type += L" ("; if (t.is_vpn) type += L"VPN/"; if (t.is_proxy) type += L"代理/"; if (t.is_tor) type += L"Tor/";
-            type.pop_back(); type += L")";
-        }
+        // 枚举实际检测到的所有标签，不做错误假设
+        std::wstring type;
+        if (t.is_datacenter) { if (!type.empty()) type += L" + "; type += L"IDC机房"; }
+        if (t.is_mobile)     { if (!type.empty()) type += L" + "; type += L"移动网络"; }
+        if (t.is_vpn)        { if (!type.empty()) type += L" + "; type += L"VPN"; }
+        if (t.is_proxy)      { if (!type.empty()) type += L" + "; type += L"代理"; }
+        if (t.is_tor)        { if (!type.empty()) type += L" + "; type += L"Tor"; }
+        // 没有任何标记时显示中性的“普通宽带”（多数为家庭宽带），避免用户以为检测失败
+        if (type.empty()) type = L"普通宽带";
+
         std::wstring status = t.is_abuser ? L"恶意/黑名单" : L"纯净";
         if (!t.risk_score.empty()) { status += L" (分数: " + t.risk_score + L")"; }
         return L"    类型: " + type + L" | 状态: " + status + L"\n";
