@@ -212,3 +212,4 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
 
 ## License
 - Licensed under the MIT License. Author: HiTech_NinJa & Contributors.
+- The vendored TrafficMonitor interface retains its upstream Anti 996 License; see [interface provenance and license](include/README.md).
