@@ -18,6 +18,27 @@ protocols, latency calculation and worker ownership are unchanged.
 
 ## Taskbar layout
 
+New profiles use the **Country code** format (`display_format=5`), for example
+`GB`, `CN` or `US`. The five existing format values keep their previous meaning;
+an explicitly saved choice is not replaced. Select Country code in the options
+to switch an existing profile. Missing or invalid format values use the new
+default; legacy profiles with only show_ip retain their old interpretation.
+A country that cannot be resolved displays `--` rather than a guessed
+abbreviation or a long error message. Full location, IP, ISP and diagnostics
+remain available in the tooltip and status page.
+
+Default item labels follow the host UI language: English uses `Direct:` and
+`Proxy:`, while Chinese keeps `直:` and `代:`. Country codes are the same in both
+languages. TrafficMonitor's saved label overrides are preserved, so an existing
+custom label may need to be reset in the host when switching languages.
+
+The parser retains country_code/countryCode separately from the full location.
+For old provider URLs that omit that field, it matches an exact English, native
+or Windows-localized country name against Windows locale data. If a provider
+returns only a two-letter country, the tooltip uses its English country name
+when Windows can resolve it. No extra network lookup is made. Country codes
+survive the existing cached-result retention policy with their associated IP.
+
 GetItemValueSampleText returns the actual bounded display value instead of a
 fixed example. TrafficMonitor measures that string using its own font and DPI.
 The plugin retains the measured value per rendering thread until the next

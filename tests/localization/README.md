@@ -46,14 +46,21 @@ normal restart. v7+ initialization binds language before the first configured
 worker formats its tooltip. Older hosts without OnInitialize use English and
 their normal DataRequired update path.
 
-Taskbar checks cover both routes, all five display formats, three long values
+Taskbar checks cover both routes, all six display formats, three long values
 (Latin, Chinese, and supplementary characters with combining accents), three
-fonts and 96/144/192 DPI: 270 GDI comparisons per host language, 1080 total.
+fonts and 96/144/192 DPI: 324 GDI comparisons per host language, 1296 total.
 Each displayed value must fit the measured sample and contain valid UTF-16.
 The compact region/latency format must retain the latency suffix. Another check
 publishes a longer value between measure and paint: the taskbar retains the
 measured value until the next sample call. Sample and value pointers must not
 invalidate each other. Main-window drawing still reads the latest value.
+
+Country-format checks exercise the real worker and parser against loopback
+responses using country_code, countryCode, a legacy full country name, and a
+two-letter country without a full name. The panel must show only the code while
+the tooltip retains the complete location and IP. An unrecognized country must
+show `--`. Native names are resolved without translating provider geography;
+both route values, the settings roundtrip and a new profile's default are checked.
 
 These are native hidden-window and GDI tests, not a full TrafficMonitor GUI
 session. Manually check the portable host in EN/ZH, including long geography,

@@ -44,6 +44,7 @@
   - 顶栏采用自绘分段胶囊导航栏（`CModernTabBar`），支持鼠标悬停过渡与高亮指示线。
   - 按钮采用自绘圆角控件（`CModernButton`），主操作提供 Win11 强调蓝视觉反馈。
 - **任务栏格式即时切换**：
+  - 新设置默认只显示国家代码（如 `GB`、`CN`、`US`）。完整地区、IP 地址及其他诊断信息保留在悬浮提示中。已有显示格式保持不变，可在设置中选择国家代码模式。
   - 调整任务栏显示格式下拉选项时，系统即刻触发内存数据重格式化并更新任务栏，无需等待网络请求。
 - **自动刷新动态倒计时**：
   - 常规设置面板状态行提供动态跳动的秒级倒计时，实时掌握下一次自动探测的时间点。
@@ -181,6 +182,7 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
   - Custom-drawn segmented tab navigation (`CModernTabBar`) with smooth hover feedback and accent indicator lines.
   - Modern rounded button controls (`CModernButton`) featuring Win11 accent blue branding.
 - **Instant Taskbar Format Updates**:
+  - New settings default to a country code such as `GB`, `CN` or `US`. Hover for the full location, IP address and diagnostics. Existing saved formats are preserved; choose **Country code** in settings to switch an existing installation.
   - Changing display format instantly reformats the taskbar display text from memory without waiting for network requests.
 - **Dynamic Refresh Countdown**:
   - Displays a real-time ticking countdown in the options dialog indicating when the next automatic refresh will occur.
