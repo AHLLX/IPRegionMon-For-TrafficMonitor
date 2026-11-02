@@ -259,6 +259,11 @@
     <ClInclude Include="include\PluginInterface.h" />
     <ClInclude Include="CustomDrawItem.h" />
     <ClInclude Include="DataManager.h" />
+    <ClInclude Include="CountryInfo.h" />
+    <ClInclude Include="ModuleTask.h" />
+    <ClInclude Include="BoundedHttp.h" />
+    <ClInclude Include="UiLanguage.h" />
+    <ClInclude Include="AsyncTextResult.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="IPRegionMon.h" />
     <ClInclude Include="OptionsDlg.h" />
@@ -269,6 +274,7 @@
   <ItemGroup>
     <ClCompile Include="CustomDrawItem.cpp" />
     <ClCompile Include="DataManager.cpp" />
+    <ClCompile Include="UiLanguage.cpp" />
     <ClCompile Include="IPRegionMon.cpp" />
     <ClCompile Include="OptionsDlg.cpp" />
     <ClCompile Include="ModernUI.cpp" />
@@ -286,6 +292,21 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(IPRegionMonConcurrencyTests)'=='true'">
+    <ClCompile>
+      <PreprocessorDefinitions>IPREGIONMON_TESTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(IPRegionMonConcurrencyTests)'=='true'">
+    <ClCompile Include="tests\concurrency\plugin_fixture.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup Condition="'$(IPRegionMonLocalizationTests)'=='true'">
+    <ClCompile Include="tests\localization\locale_fixture.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

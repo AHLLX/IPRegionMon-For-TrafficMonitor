@@ -62,6 +62,9 @@ private:
 // 现代顶栏分段导航条（Segmented Navigation Bar）
 class CModernTabBar : public CWnd
 {
+#ifdef IPREGIONMON_TESTING
+    friend struct LocalizationTestAccess;
+#endif
 public:
     CModernTabBar();
     virtual ~CModernTabBar() = default;
@@ -104,10 +107,14 @@ struct ModernCardDef
 // 现代子对话框基类：支持自动卡片绘制、DPI 感知、背景管理与控件主题美化
 class CModernSubDlg : public CDialog
 {
+#ifdef IPREGIONMON_TESTING
+    friend struct LocalizationTestAccess;
+#endif
     DECLARE_DYNAMIC(CModernSubDlg)
 public:
     CModernSubDlg(UINT nIDTemplate, CWnd* pParent = nullptr);
     virtual ~CModernSubDlg();
+    BOOL Create(UINT templateId, CWnd* parent);
 
     void AddCard(int leftDlu, int topDlu, int rightDlu, int bottomDlu, const std::wstring& title);
 

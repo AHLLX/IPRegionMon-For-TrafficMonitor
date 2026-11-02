@@ -3,8 +3,11 @@
 #include <winhttp.h>
 #include <stdarg.h>
 #include <fstream>
-#include <thread>
-#include <future>
+#include "ModuleTask.h"
+#include "BoundedHttp.h"
+#include "UiLanguage.h"
+#include "CountryInfo.h"
+
 #pragma comment(lib, "winhttp.lib")
 
 // declare __ImageBase to get current module path when used inside DLL
@@ -226,156 +229,53 @@ static std::vector<std::wstring> GetJsonArrayStrings(const std::wstring& json, c
 // 通过 WinHTTP 进行 GET 请求
 static bool HttpGet(const std::wstring& url, const std::wstring& proxy, bool no_proxy, std::string& out)
 {
-    URL_COMPONENTSW uc{}; uc.dwStructSize = sizeof(uc);
-    wchar_t host[256]{}; wchar_t path[2048]{}; wchar_t scheme[16]{};
-    uc.lpszHostName = host; uc.dwHostNameLength = _countof(host);
-    uc.lpszUrlPath = path; uc.dwUrlPathLength = _countof(path);
-    uc.lpszScheme = scheme; uc.dwSchemeLength = _countof(scheme);
-    if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc))
-        return false;
-    bool https = (uc.nScheme == INTERNET_SCHEME_HTTPS);
-    std::wstring sHost(uc.lpszHostName, uc.dwHostNameLength);
-    std::wstring sPath = (uc.dwUrlPathLength > 0) ? std::wstring(uc.lpszUrlPath, uc.dwUrlPathLength) : L"/";
-
-    DWORD accessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-    const wchar_t* pProxy = WINHTTP_NO_PROXY_NAME;
-    if (!proxy.empty())
-    {
-        accessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-        pProxy = proxy.c_str();
-    }
-    else if (no_proxy)
-    {
-        accessType = WINHTTP_ACCESS_TYPE_NO_PROXY;
-    }
-
-    HINTERNET hs = WinHttpOpen(L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        accessType, pProxy, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hs) return false;
-
-    // 连接与读取超时设为 4000ms，增强容错
-    WinHttpSetTimeouts(hs, 4000, 4000, 4000, 4000);
-
-    DWORD maxRetries = 1;
-    WinHttpSetOption(hs, WINHTTP_OPTION_CONNECT_RETRIES, &maxRetries, sizeof(maxRetries));
-
-    DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-    WinHttpSetOption(hs, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
-
-    HINTERNET hc = WinHttpConnect(hs, sHost.c_str(), uc.nPort, 0);
-    if (!hc) { WinHttpCloseHandle(hs); return false; }
-
-    DWORD flags = https ? WINHTTP_FLAG_SECURE : 0;
-    HINTERNET hr = WinHttpOpenRequest(hc, L"GET", sPath.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!hr) { WinHttpCloseHandle(hc); WinHttpCloseHandle(hs); return false; }
-
-    // 自动跟踪重定向与放宽安全证书限制（兼容代理中间人/内网环境）
-    DWORD redirectOption = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
-    WinHttpSetOption(hr, WINHTTP_OPTION_REDIRECT_POLICY, &redirectOption, sizeof(redirectOption));
-    if (https)
-    {
-        DWORD secFlags = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
-                         SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
-                         SECURITY_FLAG_IGNORE_CERT_CN_INVALID |
-                         SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
-        WinHttpSetOption(hr, WINHTTP_OPTION_SECURITY_FLAGS, &secFlags, sizeof(secFlags));
-    }
-
-    BOOL ok = WinHttpSendRequest(hr, L"Connection: close\r\n", -1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    if (ok) ok = WinHttpReceiveResponse(hr, nullptr);
-
-    if (ok)
-    {
-        DWORD sz = 0;
-        do {
-            DWORD got = 0;
-            if (!WinHttpQueryDataAvailable(hr, &sz) || sz == 0) break;
-            std::string buf; buf.resize(sz);
-            if (!WinHttpReadData(hr, &buf[0], sz, &got)) break;
-            if (got == 0) break;
-            buf.resize(got);
-            out += buf;
-        } while (sz > 0);
-    }
-
-    WinHttpCloseHandle(hr); WinHttpCloseHandle(hc); WinHttpCloseHandle(hs);
-    return !out.empty();
+    double unused;
+    return BoundedHttp::Perform(url, proxy, no_proxy, false, out, unused);
 }
 
 bool CDataManager::MeasureLatencyMs(const std::wstring& url_or_host, const std::wstring& proxy, bool no_proxy, double& out_ms)
 {
-    out_ms = -1.0;
     std::wstring url = url_or_host;
-    if (url.find(L"://") == std::wstring::npos)
-        url = L"https://" + url;
-    URL_COMPONENTSW uc{}; uc.dwStructSize = sizeof(uc);
-    wchar_t host[256]{}; wchar_t path[2048]{}; wchar_t scheme[16]{};
-    uc.lpszHostName = host; uc.dwHostNameLength = _countof(host);
-    uc.lpszUrlPath = path; uc.dwUrlPathLength = _countof(path);
-    uc.lpszScheme = scheme; uc.dwSchemeLength = _countof(scheme);
-    if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc))
-        return false;
-    bool https = (uc.nScheme == INTERNET_SCHEME_HTTPS);
-    std::wstring sHost(uc.lpszHostName, uc.dwHostNameLength);
-    std::wstring sPath = (uc.dwUrlPathLength > 0) ? std::wstring(uc.lpszUrlPath, uc.dwUrlPathLength) : L"/";
-
-    DWORD accessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-    const wchar_t* pProxy = WINHTTP_NO_PROXY_NAME;
-    if (!proxy.empty())
-    {
-        accessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-        pProxy = proxy.c_str();
-    }
-    else if (no_proxy)
-    {
-        accessType = WINHTTP_ACCESS_TYPE_NO_PROXY;
-    }
-
-    HINTERNET hs = WinHttpOpen(L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        accessType, pProxy, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hs) return false;
-
-    // 测速超时 1200ms
-    WinHttpSetTimeouts(hs, 1200, 1200, 1200, 1200);
-
-    DWORD maxRetries = 1;
-    WinHttpSetOption(hs, WINHTTP_OPTION_CONNECT_RETRIES, &maxRetries, sizeof(maxRetries));
-
-    DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-    WinHttpSetOption(hs, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
-
-    HINTERNET hc = WinHttpConnect(hs, sHost.c_str(), uc.nPort, 0);
-    if (!hc) { WinHttpCloseHandle(hs); return false; }
-
-    DWORD flags = https ? WINHTTP_FLAG_SECURE : 0;
-    HINTERNET hr = WinHttpOpenRequest(hc, L"HEAD", sPath.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!hr) { WinHttpCloseHandle(hc); WinHttpCloseHandle(hs); return false; }
-
-    if (https)
-    {
-        DWORD secFlags = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
-                         SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
-        WinHttpSetOption(hr, WINHTTP_OPTION_SECURITY_FLAGS, &secFlags, sizeof(secFlags));
-    }
-
-    ULONGLONG t0 = GetTickCount64();
-    BOOL ok = WinHttpSendRequest(hr, L"Connection: close\r\n", -1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    if (ok) ok = WinHttpReceiveResponse(hr, nullptr);
-    ULONGLONG t1 = GetTickCount64();
-
-    if (ok)
-        out_ms = static_cast<double>(t1 - t0);
-
-    WinHttpCloseHandle(hr); WinHttpCloseHandle(hc); WinHttpCloseHandle(hs);
-    return ok == TRUE;
+    if (url.find(L"://") == std::wstring::npos) url = L"https://" + url;
+    std::string unused;
+    return BoundedHttp::Perform(url, proxy, no_proxy, true, unused, out_ms);
 }
+
+#ifdef IPREGIONMON_TESTING
+extern "C" __declspec(dllexport) BOOL TestNetworkRequest(const wchar_t* url, BOOL head,
+    DWORD* error, DWORD* bytes)
+{
+    std::string body;
+    double latency;
+    const bool ok = head ? CDataManager::MeasureLatencyMs(url, L"", true, latency) :
+        HttpGet(url, L"", true, body);
+    *error = ok ? ERROR_SUCCESS : GetLastError();
+    *bytes = static_cast<DWORD>(body.size());
+    return ok;
+}
+
+extern "C" __declspec(dllexport) BOOL TestNetworkStart(const wchar_t* url, HANDLE completed)
+{
+    return ModuleTask::Start([url = std::wstring(url), completed]() {
+        std::string body;
+        HttpGet(url, L"", true, body);
+        SetEvent(completed);
+    });
+}
+
+extern "C" __declspec(dllexport) void TestNetworkHoldCallback(HANDLE entered, HANDLE release)
+{
+    BoundedHttp::CallbackTest().release = release;
+    BoundedHttp::CallbackTest().entered = entered;
+}
+#endif
 
 bool CDataManager::TestProxyConnectivity(const std::wstring& proxy, std::wstring& out_message, double& out_ms)
 {
     out_ms = -1.0;
     if (proxy.empty())
     {
-        out_message = L"代理地址为空！";
+        out_message = UiLanguage::Text(IDS_PROXY_EMPTY).c_str();
         return false;
     }
 
@@ -388,40 +288,31 @@ bool CDataManager::TestProxyConnectivity(const std::wstring& proxy, std::wstring
 
     if (ok && out_ms >= 0)
     {
-        wchar_t buf[64]{};
-        swprintf_s(buf, L"连接成功 (延迟: %.0f ms)", out_ms);
-        out_message = buf;
+        out_message = UiLanguage::Format(IDS_PROXY_CONNECTED, out_ms);
         return true;
     }
     else
     {
-        out_message = L"连接失败：无法通过该代理访问目标网络";
+        out_message = UiLanguage::Text(IDS_PROXY_UNREACHABLE).c_str();
         return false;
     }
 }
 
 CDataManager::CDataManager()
 {
-    const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
-    const wchar_t* kForeignApi  = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
+    const wchar_t* kDomesticApi = L"https://ipwho.is/";
+    const wchar_t* kForeignApi  = L"https://ipwho.is/";
     m_setting_data.api_domestic_url = kDomesticApi;
     m_setting_data.api_foreign_url  = kForeignApi;
     m_setting_data.use_proxy = false;
     m_setting_data.refresh_interval_sec = 300;
     m_setting_data.show_ip = true;
-    m_setting_data.display_format = DF_REGION_AND_IP;
+    m_setting_data.display_format = DF_COUNTRY_CODE;
 
     // 默认测试目标
     m_setting_data.latency_targets.push_back({ L"百度", L"https://www.baidu.com" });
     m_setting_data.latency_targets.push_back({ L"Google", L"https://www.google.com" });
     m_setting_data.latency_targets.push_back({ L"Cloudflare", L"https://1.1.1.1" });
-
-    m_ip_update_interval_ms = m_setting_data.refresh_interval_sec * 1000u;
-}
-
-CDataManager::~CDataManager()
-{
-    SaveConfig();
 }
 
 CDataManager& CDataManager::Instance()
@@ -431,86 +322,96 @@ CDataManager& CDataManager::Instance()
 
 void CDataManager::LoadConfig(const std::wstring& config_dir)
 {
+    std::lock_guard<std::mutex> io_lock(m_config_mutex);
+    SettingData settings = GetSettings();
+    std::wstring config_path;
     HMODULE hModule = reinterpret_cast<HMODULE>(&__ImageBase);
     wchar_t path[MAX_PATH];
     GetModuleFileNameW(hModule, path, MAX_PATH);
     std::wstring module_path = path;
-    m_config_path = module_path;
+    config_path = module_path;
     if (!config_dir.empty())
     {
         size_t index = module_path.find_last_of(L"\\/");
         std::wstring module_file_name = module_path.substr(index + 1);
-        m_config_path = config_dir + module_file_name;
+        config_path = config_dir + module_file_name;
     }
-    m_config_path += L".ini";
+    config_path += L".ini";
 
-    m_setting_data.show_second = GetPrivateProfileIntW(L"config", L"show_second", 0, m_config_path.c_str());
-    m_setting_data.use_proxy = GetPrivateProfileIntW(L"ip", L"use_proxy", 0, m_config_path.c_str()) != 0;
+    settings.show_second = GetPrivateProfileIntW(L"config", L"show_second", 0, config_path.c_str());
+    settings.use_proxy = GetPrivateProfileIntW(L"ip", L"use_proxy", 0, config_path.c_str()) != 0;
 
     wchar_t buff[1024]{};
-    GetPrivateProfileStringW(L"ip", L"proxy_address", L"127.0.0.1:7890", buff, _countof(buff), m_config_path.c_str());
-    m_setting_data.proxy_address = buff;
+    GetPrivateProfileStringW(L"ip", L"proxy_address", L"127.0.0.1:7890", buff, _countof(buff), config_path.c_str());
+    settings.proxy_address = buff;
 
-    m_setting_data.refresh_interval_sec = GetPrivateProfileIntW(L"ip", L"refresh_interval_sec", 300, m_config_path.c_str());
-    m_setting_data.show_ip = GetPrivateProfileIntW(L"ip", L"show_ip", 1, m_config_path.c_str()) != 0;
+    settings.refresh_interval_sec = GetPrivateProfileIntW(L"ip", L"refresh_interval_sec", 300, config_path.c_str());
+    settings.show_ip = GetPrivateProfileIntW(L"ip", L"show_ip", 1, config_path.c_str()) != 0;
 
-    // 读取显示格式（若无则根据旧版 show_ip 推断）
-    int def_format = m_setting_data.show_ip ? DF_REGION_AND_IP : DF_REGION_ONLY;
-    m_setting_data.display_format = GetPrivateProfileIntW(L"ip", L"display_format", def_format, m_config_path.c_str());
+    // Preserve old show_ip-only profiles as well as explicit display formats.
+    GetPrivateProfileStringW(L"ip", L"show_ip", L"", buff, _countof(buff), config_path.c_str());
+    const int default_format = buff[0] ? (settings.show_ip ? DF_REGION_AND_IP : DF_REGION_ONLY) : DF_COUNTRY_CODE;
+    settings.display_format = GetPrivateProfileIntW(L"ip", L"display_format", default_format, config_path.c_str());
+    if (settings.display_format < DF_REGION_ONLY || settings.display_format > DF_COUNTRY_CODE)
+        settings.display_format = DF_COUNTRY_CODE;
 
-    GetPrivateProfileStringW(L"ip", L"api_url", L"", buff, _countof(buff), m_config_path.c_str());
-    m_setting_data.api_url = buff;
+    GetPrivateProfileStringW(L"ip", L"api_url", L"", buff, _countof(buff), config_path.c_str());
+    settings.api_url = buff;
 
-    GetPrivateProfileStringW(L"ip", L"api_domestic_url", L"", buff, _countof(buff), m_config_path.c_str());
+    GetPrivateProfileStringW(L"ip", L"api_domestic_url", L"", buff, _countof(buff), config_path.c_str());
     std::wstring domestic = buff;
-    GetPrivateProfileStringW(L"ip", L"api_foreign_url", L"", buff, _countof(buff), m_config_path.c_str());
+    GetPrivateProfileStringW(L"ip", L"api_foreign_url", L"", buff, _countof(buff), config_path.c_str());
     std::wstring foreign = buff;
 
     // 读取延迟目标列表
-    m_setting_data.latency_targets.clear();
-    int n = GetPrivateProfileIntW(L"ip", L"latency_targets_n", 0, m_config_path.c_str());
+    settings.latency_targets.clear();
+    int n = GetPrivateProfileIntW(L"ip", L"latency_targets_n", 0, config_path.c_str());
     if (n > 0)
     {
         for (int i = 0; i < n; ++i)
         {
             wchar_t key_name[64]{}; swprintf_s(key_name, L"latency_name_%d", i);
             wchar_t key_url[64]{};  swprintf_s(key_url,  L"latency_url_%d", i);
-            GetPrivateProfileStringW(L"ip", key_name, L"", buff, _countof(buff), m_config_path.c_str());
+            GetPrivateProfileStringW(L"ip", key_name, L"", buff, _countof(buff), config_path.c_str());
             std::wstring name = Utf8HexDecode(buff);
-            GetPrivateProfileStringW(L"ip", key_url, L"", buff, _countof(buff), m_config_path.c_str());
+            GetPrivateProfileStringW(L"ip", key_url, L"", buff, _countof(buff), config_path.c_str());
             std::wstring url = Utf8HexDecode(buff);
             if (!url.empty())
-                m_setting_data.latency_targets.push_back({ name, url });
+                settings.latency_targets.push_back({ name, url });
         }
     }
     else
     {
         // 兼容单项 latency_target 或默认
-        GetPrivateProfileStringW(L"ip", L"latency_target", L"", buff, _countof(buff), m_config_path.c_str());
+        GetPrivateProfileStringW(L"ip", L"latency_target", L"", buff, _countof(buff), config_path.c_str());
         std::wstring single_latency = Utf8HexDecode(buff);
         if (!single_latency.empty())
         {
-            m_setting_data.latency_targets.push_back({ L"默认", single_latency });
+            settings.latency_targets.push_back({ L"默认", single_latency });
         }
         else
         {
-            m_setting_data.latency_targets.push_back({ L"百度", L"https://www.baidu.com" });
-            m_setting_data.latency_targets.push_back({ L"Google", L"https://www.google.com" });
-            m_setting_data.latency_targets.push_back({ L"Cloudflare", L"https://1.1.1.1" });
+            settings.latency_targets.push_back({ L"百度", L"https://www.baidu.com" });
+            settings.latency_targets.push_back({ L"Google", L"https://www.google.com" });
+            settings.latency_targets.push_back({ L"Cloudflare", L"https://1.1.1.1" });
         }
     }
 
-    if (!domestic.empty()) m_setting_data.api_domestic_url = domestic; else if (!m_setting_data.api_url.empty()) m_setting_data.api_domestic_url = m_setting_data.api_url;
-    if (!foreign.empty())  m_setting_data.api_foreign_url  = foreign;  else if (!m_setting_data.api_url.empty()) m_setting_data.api_foreign_url  = m_setting_data.api_url;
+    if (!domestic.empty()) settings.api_domestic_url = domestic; else if (!settings.api_url.empty()) settings.api_domestic_url = settings.api_url;
+    if (!foreign.empty())  settings.api_foreign_url  = foreign;  else if (!settings.api_url.empty()) settings.api_foreign_url  = settings.api_url;
 
-    const wchar_t* kDomesticApi = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
-    const wchar_t* kForeignApi  = L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN";
-    if (m_setting_data.api_domestic_url.empty() || m_setting_data.api_domestic_url.find(L"ipip.net") != std::wstring::npos)
-        m_setting_data.api_domestic_url = kDomesticApi;
-    if (m_setting_data.api_foreign_url.empty())  m_setting_data.api_foreign_url  = kForeignApi;
+    const wchar_t* kDomesticApi = L"https://ipwho.is/";
+    const wchar_t* kForeignApi  = L"https://ipwho.is/";
+    if (settings.api_domestic_url.empty() || settings.api_domestic_url.find(L"ipip.net") != std::wstring::npos)
+        settings.api_domestic_url = kDomesticApi;
+    if (settings.api_foreign_url.empty())  settings.api_foreign_url  = kForeignApi;
 
-    if (m_setting_data.refresh_interval_sec < 5) m_setting_data.refresh_interval_sec = 5;
-    m_ip_update_interval_ms = (unsigned int)m_setting_data.refresh_interval_sec * 1000u;
+    if (settings.refresh_interval_sec < 5) settings.refresh_interval_sec = 5;
+    {
+        std::lock_guard<std::mutex> lock(m_swap_mutex);
+        m_setting_data = std::move(settings);
+        m_config_path = std::move(config_path);
+    }
 }
 
 static void WritePrivateProfileInt(const wchar_t* app, const wchar_t* key, int v, const wchar_t* file)
@@ -520,51 +421,58 @@ static void WritePrivateProfileInt(const wchar_t* app, const wchar_t* key, int v
 
 void CDataManager::SaveConfig() const
 {
-    WritePrivateProfileInt(L"config", L"show_second", m_setting_data.show_second, m_config_path.c_str());
-    WritePrivateProfileInt(L"ip", L"use_proxy", m_setting_data.use_proxy ? 1 : 0, m_config_path.c_str());
-    WritePrivateProfileStringW(L"ip", L"proxy_address", m_setting_data.proxy_address.c_str(), m_config_path.c_str());
-    WritePrivateProfileStringW(L"ip", L"api_domestic_url", m_setting_data.api_domestic_url.c_str(), m_config_path.c_str());
-    WritePrivateProfileStringW(L"ip", L"api_foreign_url", m_setting_data.api_foreign_url.c_str(), m_config_path.c_str());
-    WritePrivateProfileInt(L"ip", L"refresh_interval_sec", m_setting_data.refresh_interval_sec, m_config_path.c_str());
-    WritePrivateProfileInt(L"ip", L"show_ip", m_setting_data.show_ip ? 1 : 0, m_config_path.c_str());
-    WritePrivateProfileInt(L"ip", L"display_format", m_setting_data.display_format, m_config_path.c_str());
+    std::lock_guard<std::mutex> io_lock(m_config_mutex);
+    SettingData settings;
+    std::wstring config_path;
+    {
+        std::lock_guard<std::mutex> lock(m_swap_mutex);
+        settings = m_setting_data;
+        config_path = m_config_path;
+    }
+    if (config_path.empty()) return;
+    WritePrivateProfileInt(L"config", L"show_second", settings.show_second, config_path.c_str());
+    WritePrivateProfileInt(L"ip", L"use_proxy", settings.use_proxy ? 1 : 0, config_path.c_str());
+    WritePrivateProfileStringW(L"ip", L"proxy_address", settings.proxy_address.c_str(), config_path.c_str());
+    WritePrivateProfileStringW(L"ip", L"api_domestic_url", settings.api_domestic_url.c_str(), config_path.c_str());
+    WritePrivateProfileStringW(L"ip", L"api_foreign_url", settings.api_foreign_url.c_str(), config_path.c_str());
+    WritePrivateProfileInt(L"ip", L"refresh_interval_sec", settings.refresh_interval_sec, config_path.c_str());
+    WritePrivateProfileInt(L"ip", L"show_ip", settings.show_ip ? 1 : 0, config_path.c_str());
+    WritePrivateProfileInt(L"ip", L"display_format", settings.display_format, config_path.c_str());
 
-    WritePrivateProfileStringW(L"ip", L"latency_target", NULL, m_config_path.c_str());
-    WritePrivateProfileInt(L"ip", L"latency_targets_n", (int)m_setting_data.latency_targets.size(), m_config_path.c_str());
-    for (int i = 0; i < (int)m_setting_data.latency_targets.size(); ++i)
+    WritePrivateProfileStringW(L"ip", L"latency_target", NULL, config_path.c_str());
+    WritePrivateProfileInt(L"ip", L"latency_targets_n", (int)settings.latency_targets.size(), config_path.c_str());
+    for (int i = 0; i < (int)settings.latency_targets.size(); ++i)
     {
         wchar_t key_name[64]{}; swprintf_s(key_name, L"latency_name_%d", i);
         wchar_t key_url[64]{};  swprintf_s(key_url,  L"latency_url_%d", i);
-        std::wstring encName = Utf8HexEncode(m_setting_data.latency_targets[i].name);
-        std::wstring encUrl  = Utf8HexEncode(m_setting_data.latency_targets[i].url);
-        WritePrivateProfileStringW(L"ip", key_name, encName.c_str(), m_config_path.c_str());
-        WritePrivateProfileStringW(L"ip", key_url,  encUrl.c_str(),  m_config_path.c_str());
+        std::wstring encName = Utf8HexEncode(settings.latency_targets[i].name);
+        std::wstring encUrl  = Utf8HexEncode(settings.latency_targets[i].url);
+        WritePrivateProfileStringW(L"ip", key_name, encName.c_str(), config_path.c_str());
+        WritePrivateProfileStringW(L"ip", key_url,  encUrl.c_str(),  config_path.c_str());
     }
 }
 
 const wchar_t* CDataManager::StringRes(UINT id)
 {
-    auto it = m_string_table.find(id);
-    if (it != m_string_table.end()) return it->second.c_str();
-#ifdef AFX_MANAGE_STATE
-    AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    HINSTANCE hResInst = AfxGetResourceHandle();
-#else
-    HINSTANCE hResInst = reinterpret_cast<HINSTANCE>(&__ImageBase);
-#endif
-    wchar_t buf[256]{};
-    if (::LoadStringW(hResInst, id, buf, _countof(buf)) > 0) { m_string_table[id] = buf; return m_string_table[id].c_str(); }
-    static const wchar_t* empty = L""; return empty;
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    const auto key = std::make_pair(UiLanguage::Get(), id);
+    auto it = m_string_table.find(key);
+    if (it == m_string_table.end())
+        it = m_string_table.emplace(key, UiLanguage::Text(id, key.first)).first;
+    // Cache entries are never replaced, so previously returned pointers survive
+    // initialization and reads in another supported language.
+    return it->second.c_str();
 }
 
-bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat)
+bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, std::wstring& out_country_code, IpThreatInfo& out_threat)
 {
+    out_country_code.clear();
     std::string resp;
-    std::wstring proxy = use_proxy ? m_setting_data.proxy_address : L"";
+    std::wstring proxy = use_proxy ? proxy_address : L"";
     bool no_proxy = !use_proxy;
     if (!HttpGet(url, proxy, no_proxy, resp))
     {
-        out_place = L"请求失败（连接超时或网络未达）";
+        out_place = UiLanguage::Text(IDS_REQUEST_FAILED).c_str();
         out_ip.clear();
         out_isp.clear();
         out_threat = IpThreatInfo{};
@@ -614,6 +522,10 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
     if (country.empty()) country = GetJsonStringValue(w, L"country");
     if (country.empty()) country = GetJsonStringValue(w, L"country_name");
     if (country.empty()) country = GetJsonStringValue(w, L"c");
+    std::wstring countryCode = GetJsonStringValue(w, L"country_code");
+    if (countryCode.empty()) countryCode = GetJsonStringValue(w, L"countryCode");
+    const auto countryInfo = CountryInfo::Resolve(countryCode, country);
+    country = countryInfo.name;
     if (region.empty())  region  = GetJsonStringValue(w, L"regionName");
     if (region.empty())  region  = GetJsonStringValue(w, L"region");
     if (region.empty())  region  = GetJsonStringValue(w, L"province");
@@ -665,19 +577,20 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
 
     if (status == L"fail" || status == L"error")
     {
-        out_ip.clear(); out_place = message.empty() ? L"接口返回错误" : message; out_isp.clear();
+        out_ip.clear(); out_place = message.empty() ? UiLanguage::Text(IDS_API_ERROR).c_str() : message; out_isp.clear();
         return false;
     }
 
     if (ip.empty())
     {
-        out_place = L"解析失败（无效的数据格式）";
+        out_place = UiLanguage::Text(IDS_PARSE_FAILED).c_str();
         out_ip.clear();
         out_isp.clear();
         return false;
     }
 
     out_ip = ip; out_isp = isp;
+    out_country_code = countryInfo.code;
     std::wstring place;
     if (!country.empty()) place += country;
     if (!region.empty() && region != country)  { if (!place.empty()) place += L" "; place += region; }
@@ -688,8 +601,9 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std
     return true;
 }
 
-bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat)
+bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, std::wstring& out_country_code, IpThreatInfo& out_threat)
 {
+    out_country_code.clear();
     std::vector<std::wstring> sources;
     if (!preferredUrl.empty())
     {
@@ -698,9 +612,8 @@ bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, boo
 
     // 默认高可用源候选池
     const wchar_t* fallbackPool[] = {
-        L"http://ip-api.com/json/?fields=status,message,country,regionName,city,isp,query,proxy,hosting&lang=zh-CN",
-        L"https://api.ip.sb/geoip",
         L"https://ipwho.is/",
+        L"https://api.ip.sb/geoip",
         L"https://ipinfo.io/json"
     };
 
@@ -717,15 +630,16 @@ bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, boo
     for (size_t i = 0; i < sources.size(); ++i)
     {
         const auto& url = sources[i];
-        std::wstring l_place, l_ip, l_isp;
+        std::wstring l_place, l_ip, l_isp, l_country_code;
         IpThreatInfo l_threat;
-        if (FetchIpInfoByUrl(url, use_proxy, l_place, l_ip, l_isp, l_threat))
+        if (FetchIpInfoByUrl(url, use_proxy, proxy_address, l_place, l_ip, l_isp, l_country_code, l_threat))
         {
             if (!l_ip.empty())
             {
                 out_place = l_place;
                 out_ip = l_ip;
                 out_isp = l_isp;
+                out_country_code = l_country_code;
                 out_threat = l_threat;
                 LogInfo(L"FetchIpInfo: [%ls] Succeeded via source #%d (%ls): IP=%ls, Place=%ls",
                     use_proxy ? L"Proxy" : L"Direct", (int)i + 1, url.c_str(), out_ip.c_str(), out_place.c_str());
@@ -739,7 +653,7 @@ bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, boo
     }
 
     LogInfo(L"FetchIpInfo: [%ls] All %d sources failed.", use_proxy ? L"Proxy" : L"Direct", (int)sources.size());
-    out_place = L"请求失败（连接超时或网络未达）";
+    out_place = UiLanguage::Text(IDS_REQUEST_FAILED).c_str();
     out_ip.clear();
     out_isp.clear();
     out_threat = IpThreatInfo{};
@@ -772,48 +686,47 @@ static void AppendWrappedList(std::wstring& out, const std::vector<std::pair<std
     }
 }
 
-static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::vector<CDataManager::LatencyResult>& lats, int fmt);
+static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt);
 void CDataManager::UpdateIpInfoNow()
 {
-    static std::atomic<bool> inside_update{ false };
-    if (inside_update.exchange(true)) return;
-    struct UpdateGuard {
-        std::atomic<bool>& f;
-        ~UpdateGuard() { f = false; }
-    } guard{ inside_update };
-
+#ifdef IPREGIONMON_TESTING
+    if (m_fail_update_for_test.exchange(false)) throw std::bad_alloc();
+#endif
+    const auto snapshot = GetSnapshot();
+    const auto& settings = snapshot.settings;
+    const auto& previous = snapshot.results;
     ULONGLONG start_tick = GetTickCount64();
     LogInfo(L"UpdateIpInfoNow: Background update thread started.");
 
-    std::wstring l_public_ip_direct, l_place_direct, l_isp_direct;
+    std::wstring l_public_ip_direct, l_place_direct, l_isp_direct, l_country_code_direct;
     IpThreatInfo l_threat_direct;
-    std::wstring l_public_ip_proxy, l_place_proxy, l_isp_proxy;
+    std::wstring l_public_ip_proxy, l_place_proxy, l_isp_proxy, l_country_code_proxy;
     IpThreatInfo l_threat_proxy;
 
     bool ok_direct = false;
     bool ok_proxy = false;
     std::vector<LatencyResult> l_latency;
 
-    std::vector<LatencyTarget> targets = m_setting_data.latency_targets;
+    std::vector<LatencyTarget> targets = settings.latency_targets;
     if (targets.empty())
     {
         targets.push_back({ L"百度", L"https://www.baidu.com" });
         targets.push_back({ L"Google", L"https://www.google.com" });
     }
 
-    bool use_proxy = m_setting_data.use_proxy;
-    std::wstring proxy_addr = m_setting_data.proxy_address;
+    bool use_proxy = settings.use_proxy;
+    std::wstring proxy_addr = settings.proxy_address;
 
     // 1. 直连探测（高可用多源轮询）
     LogInfo(L"UpdateIpInfoNow: Fetching direct IP...");
-    ok_direct = FetchIpInfoWithFallback(m_setting_data.api_domestic_url, false, l_place_direct, l_public_ip_direct, l_isp_direct, l_threat_direct);
+    ok_direct = FetchIpInfoWithFallback(settings.api_domestic_url, false, proxy_addr, l_place_direct, l_public_ip_direct, l_isp_direct, l_country_code_direct, l_threat_direct);
     LogInfo(L"UpdateIpInfoNow: Direct query done (ok=%d).", ok_direct ? 1 : 0);
 
     // 2. 代理探测（高可用多源轮询）
     if (use_proxy)
     {
         LogInfo(L"UpdateIpInfoNow: Fetching proxy IP...");
-        ok_proxy = FetchIpInfoWithFallback(m_setting_data.api_foreign_url, true, l_place_proxy, l_public_ip_proxy, l_isp_proxy, l_threat_proxy);
+        ok_proxy = FetchIpInfoWithFallback(settings.api_foreign_url, true, proxy_addr, l_place_proxy, l_public_ip_proxy, l_isp_proxy, l_country_code_proxy, l_threat_proxy);
         LogInfo(L"UpdateIpInfoNow: Proxy query done (ok=%d).", ok_proxy ? 1 : 0);
     }
 
@@ -850,18 +763,19 @@ void CDataManager::UpdateIpInfoNow()
     else
     {
         m_direct_fail_count++;
-        if (!m_public_ip_direct.empty() && m_direct_fail_count <= 3)
+        if (!previous.m_public_ip_direct.empty() && m_direct_fail_count <= 3)
         {
-            LogInfo(L"UpdateIpInfoNow: Direct query failed (%d/3), retaining previous IP: %ls", m_direct_fail_count, m_public_ip_direct.c_str());
-            l_public_ip_direct = m_public_ip_direct;
-            l_place_direct     = m_place_direct;
-            l_isp_direct       = m_isp_direct;
-            l_threat_direct    = m_threat_direct;
+            LogInfo(L"UpdateIpInfoNow: Direct query failed (%d/3), retaining previous IP: %ls", m_direct_fail_count, previous.m_public_ip_direct.c_str());
+            l_public_ip_direct = previous.m_public_ip_direct;
+            l_place_direct     = previous.m_place_direct;
+            l_country_code_direct = previous.m_country_code_direct;
+            l_isp_direct       = previous.m_isp_direct;
+            l_threat_direct    = previous.m_threat_direct;
             ok_direct = true;
         }
         else
         {
-            l_place_direct = L"请求失败（连接超时或网络未达）";
+            l_place_direct = UiLanguage::Text(IDS_REQUEST_FAILED).c_str();
             l_public_ip_direct.clear();
             l_isp_direct.clear();
             l_threat_direct = IpThreatInfo{};
@@ -877,18 +791,19 @@ void CDataManager::UpdateIpInfoNow()
         else
         {
             m_proxy_fail_count++;
-            if (!m_public_ip_proxy.empty() && m_proxy_fail_count <= 3)
+            if (!previous.m_public_ip_proxy.empty() && m_proxy_fail_count <= 3)
             {
-                LogInfo(L"UpdateIpInfoNow: Proxy query failed (%d/3), retaining previous IP: %ls", m_proxy_fail_count, m_public_ip_proxy.c_str());
-                l_public_ip_proxy = m_public_ip_proxy;
-                l_place_proxy     = m_place_proxy;
-                l_isp_proxy       = m_isp_proxy;
-                l_threat_proxy    = m_threat_proxy;
+                LogInfo(L"UpdateIpInfoNow: Proxy query failed (%d/3), retaining previous IP: %ls", m_proxy_fail_count, previous.m_public_ip_proxy.c_str());
+                l_public_ip_proxy = previous.m_public_ip_proxy;
+                l_place_proxy     = previous.m_place_proxy;
+                l_country_code_proxy = previous.m_country_code_proxy;
+                l_isp_proxy       = previous.m_isp_proxy;
+                l_threat_proxy    = previous.m_threat_proxy;
                 ok_proxy = true;
             }
             else
             {
-                l_place_proxy = L"请求失败（连接超时或网络未达）";
+                l_place_proxy = UiLanguage::Text(IDS_REQUEST_FAILED).c_str();
                 l_public_ip_proxy.clear();
                 l_isp_proxy.clear();
                 l_threat_proxy = IpThreatInfo{};
@@ -899,24 +814,24 @@ void CDataManager::UpdateIpInfoNow()
     bool any_ok = ok_direct || ok_proxy;
     // 任务栏汇总文本
     std::wstring l_ip_region_display;
-    if (!l_place_direct.empty()) { l_ip_region_display += L"直:"; l_ip_region_display += l_place_direct; }
-    else if (!l_public_ip_direct.empty()) { l_ip_region_display += L"直:"; l_ip_region_display += l_public_ip_direct; }
-    if (!l_place_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += L"代:"; l_ip_region_display += l_place_proxy; }
-    else if (!l_public_ip_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += L"代:"; l_ip_region_display += l_public_ip_proxy; }
+    if (!l_place_direct.empty()) { l_ip_region_display += UiLanguage::Text(IDS_DIRECT_LABEL).c_str(); l_ip_region_display += l_place_direct; }
+    else if (!l_public_ip_direct.empty()) { l_ip_region_display += UiLanguage::Text(IDS_DIRECT_LABEL).c_str(); l_ip_region_display += l_public_ip_direct; }
+    if (!l_place_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += UiLanguage::Text(IDS_PROXY_LABEL).c_str(); l_ip_region_display += l_place_proxy; }
+    else if (!l_public_ip_proxy.empty()) { if (!l_ip_region_display.empty()) l_ip_region_display += L" | "; l_ip_region_display += UiLanguage::Text(IDS_PROXY_LABEL).c_str(); l_ip_region_display += l_public_ip_proxy; }
 
     // 构造 Tooltip
     auto FormatThreatStr = [](const IpThreatInfo& t) -> std::wstring {
         std::wstring type;
-        if (t.is_datacenter) { if (!type.empty()) type += L" + "; type += L"IDC机房"; }
-        if (t.is_mobile)     { if (!type.empty()) type += L" + "; type += L"移动网络"; }
+        if (t.is_datacenter) { if (!type.empty()) type += L" + "; type += UiLanguage::Text(IDS_TYPE_DATACENTER).c_str(); }
+        if (t.is_mobile)     { if (!type.empty()) type += L" + "; type += UiLanguage::Text(IDS_TYPE_MOBILE).c_str(); }
         if (t.is_vpn)        { if (!type.empty()) type += L" + "; type += L"VPN"; }
-        if (t.is_proxy)      { if (!type.empty()) type += L" + "; type += L"代理"; }
+        if (t.is_proxy)      { if (!type.empty()) type += L" + "; type += UiLanguage::Text(IDS_TYPE_PROXY).c_str(); }
         if (t.is_tor)        { if (!type.empty()) type += L" + "; type += L"Tor"; }
-        if (type.empty()) type = L"普通宽带";
+        if (type.empty()) type = UiLanguage::Text(IDS_TYPE_NORMAL).c_str();
 
-        std::wstring status = t.is_abuser ? L"恶意/黑名单" : L"纯净";
-        if (!t.risk_score.empty()) { status += L" (欺诈分: " + t.risk_score + L")"; }
-        return L"    类型: " + type + L" | 状态: " + status + L"\n";
+        std::wstring status = t.is_abuser ? UiLanguage::Text(IDS_THREAT_ABUSER).c_str() : UiLanguage::Text(IDS_THREAT_CLEAN).c_str();
+        if (!t.risk_score.empty()) { status += UiLanguage::Text(IDS_SCORE_PREFIX).c_str() + t.risk_score + L")"; }
+        return UiLanguage::Text(IDS_TOOLTIP_TYPE_PREFIX).c_str() + type + UiLanguage::Text(IDS_STATUS_PREFIX).c_str() + status + L"\n";
     };
 
     std::wstring l_tooltip;
@@ -927,19 +842,19 @@ void CDataManager::UpdateIpInfoNow()
         
         if (!l_public_ip_direct.empty())
         {
-            l_tooltip += L"直: " + l_public_ip_direct;
+            l_tooltip += UiLanguage::Text(IDS_DIRECT_PREFIX).c_str() + l_public_ip_direct;
             if (!l_place_direct.empty()) l_tooltip += L"  [" + l_place_direct + L"]";
             if (!l_isp_direct.empty()) l_tooltip += L"  " + l_isp_direct;
             l_tooltip += L"\n" + FormatThreatStr(l_threat_direct);
         }
         if (!l_public_ip_proxy.empty())
         {
-            l_tooltip += L"代: " + l_public_ip_proxy;
+            l_tooltip += UiLanguage::Text(IDS_PROXY_PREFIX).c_str() + l_public_ip_proxy;
             if (!l_place_proxy.empty()) l_tooltip += L"  [" + l_place_proxy + L"]";
             if (!l_isp_proxy.empty()) l_tooltip += L"  " + l_isp_proxy;
             l_tooltip += L"\n" + FormatThreatStr(l_threat_proxy);
         }
-        if (!m_setting_data.use_proxy) l_tooltip += L"（未启用代理）\n";
+        if (!settings.use_proxy) l_tooltip += UiLanguage::Text(IDS_PROXY_DISABLED_NOTE).c_str();
 
         if (!l_latency.empty())
         {
@@ -949,45 +864,76 @@ void CDataManager::UpdateIpInfoNow()
                 if (it.direct_ms >= 0) ds.emplace_back(it.name, (int)(it.direct_ms + 0.5));
                 if (it.proxy_ms  >= 0) ps.emplace_back(it.name, (int)(it.proxy_ms  + 0.5));
             }
-            l_tooltip += L"延迟:\n";
-            AppendWrappedList(l_tooltip, ds, L"直: ", 3);
-            if (m_setting_data.use_proxy) AppendWrappedList(l_tooltip, ps, L"代: ", 3);
-            else l_tooltip += L"代: -\n";
+            l_tooltip += UiLanguage::Text(IDS_LATENCY_HEADING).c_str();
+            AppendWrappedList(l_tooltip, ds, UiLanguage::Text(IDS_DIRECT_PREFIX).c_str(), 3);
+            if (settings.use_proxy) AppendWrappedList(l_tooltip, ps, UiLanguage::Text(IDS_PROXY_PREFIX).c_str(), 3);
+            else l_tooltip += UiLanguage::Text(IDS_PROXY_PREFIX) + L"-\n";
         }
-        l_tooltip += L"最后更新: "; l_tooltip += tb;
+        l_tooltip += UiLanguage::Text(IDS_LAST_UPDATE_PREFIX).c_str(); l_tooltip += tb;
     }
 
     m_last_ip_update_tick = GetTickCount64();
 
+    ResultSnapshot next;
+    next.m_public_ip_direct = std::move(l_public_ip_direct);
+    next.m_place_direct = std::move(l_place_direct);
+    next.m_country_code_direct = std::move(l_country_code_direct);
+    next.m_isp_direct = std::move(l_isp_direct);
+    next.m_threat_direct = std::move(l_threat_direct);
+    next.m_public_ip_proxy = std::move(l_public_ip_proxy);
+    next.m_place_proxy = std::move(l_place_proxy);
+    next.m_country_code_proxy = std::move(l_country_code_proxy);
+    next.m_isp_proxy = std::move(l_isp_proxy);
+    next.m_threat_proxy = std::move(l_threat_proxy);
+    next.m_latency_results = std::move(l_latency);
+    next.m_ip_region_display = std::move(l_ip_region_display);
+    next.m_tooltip = std::move(l_tooltip);
     {
         std::lock_guard<std::mutex> lock(m_swap_mutex);
-        m_public_ip_direct_bg = l_public_ip_direct;
-        m_place_direct_bg = l_place_direct;
-        m_isp_direct_bg = l_isp_direct;
-        m_threat_direct_bg = l_threat_direct;
-
-        m_public_ip_proxy_bg = l_public_ip_proxy;
-        m_place_proxy_bg = l_place_proxy;
-        m_isp_proxy_bg = l_isp_proxy;
-        m_threat_proxy_bg = l_threat_proxy;
-
-        m_latency_results_bg = l_latency;
-        m_ip_region_display_bg = l_ip_region_display;
-        m_tooltip_bg = l_tooltip;
-        m_direct_item_text_bg = FormatItemTextHelper(false, l_place_direct, l_public_ip_direct, l_isp_direct, l_latency, m_setting_data.display_format);
-        m_proxy_item_text_bg  = FormatItemTextHelper(true,  l_place_proxy,  l_public_ip_proxy,  l_isp_proxy,  l_latency, m_setting_data.display_format);
-
+        const int format = m_setting_data.display_format;
+        next.m_direct_item_text = FormatItemTextHelper(false, next.m_place_direct,
+            next.m_public_ip_direct, next.m_isp_direct, next.m_country_code_direct, next.m_latency_results, format);
+        next.m_proxy_item_text = FormatItemTextHelper(true, next.m_place_proxy,
+            next.m_public_ip_proxy, next.m_isp_proxy, next.m_country_code_proxy, next.m_latency_results, format);
+        m_pending = std::move(next);
         m_has_new_data = true;
     }
-
     LogInfo(L"UpdateIpInfoNow: Background update completed in %.2f s.", (GetTickCount64() - start_tick) / 1000.0);
-    inside_update = false;
+
 }
 
-static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
+// Units bound taskbar compactness, not pixels. The host measures the actual
+// returned sample in its own font and DPI. Keep UTF-16 pairs and combining
+// accents intact when eliding; the full source data remains in the snapshot.
+static std::wstring CompactDisplayText(const std::wstring& value, size_t limit)
+{
+    size_t position = 0, units = 0, cut = 0;
+    while (position < value.size())
+    {
+        const wchar_t character = value[position];
+        const bool pair = character >= 0xd800 && character <= 0xdbff &&
+            position + 1 < value.size() && value[position + 1] >= 0xdc00 && value[position + 1] <= 0xdfff;
+        units += pair || character >= 0x2e80 ? 2 : 1;
+        position += pair ? 2 : 1;
+        if (units < limit) cut = position;
+    }
+    if (units <= limit) return value;
+    WORD kind = 0;
+    while (cut && cut < value.size() && GetStringTypeW(CT_CTYPE3, &value[cut], 1, &kind) &&
+        (kind & (C3_NONSPACING | C3_DIACRITIC))) --cut;
+    if (cut && cut < value.size() && value[cut - 1] >= 0xd800 && value[cut - 1] <= 0xdbff &&
+        value[cut] >= 0xdc00 && value[cut] <= 0xdfff) --cut;
+    while (cut && (value[cut - 1] == L' ' || value[cut - 1] == L'\x200d')) --cut;
+    return value.substr(0, cut) + L"\u2026";
+}
+
+static std::wstring FormatItemTextRaw(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
 {
     switch (fmt)
     {
+    case DF_COUNTRY_CODE:
+        return country_code.empty() ? L"--" : country_code;
+
     case DF_REGION_ONLY:
         if (!place.empty()) return place;
         return ip.empty() ? L"..." : ip;
@@ -998,7 +944,7 @@ static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& plac
 
     case DF_REGION_AND_LATENCY:
     {
-        std::wstring out = place.empty() ? ip : place;
+        std::wstring out = CompactDisplayText(place.empty() ? ip : place, 20);
         for (const auto& r : lats)
         {
             double ms = is_proxy ? r.proxy_ms : r.direct_ms;
@@ -1032,106 +978,164 @@ static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& plac
     }
 }
 
+static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
+{
+    return CompactDisplayText(FormatItemTextRaw(is_proxy, place, ip, isp, country_code, lats, fmt), 48);
+}
+
+SettingData CDataManager::GetSettings() const
+{
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    return m_setting_data;
+}
+
+void CDataManager::SetSettings(SettingData settings)
+{
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    m_setting_data = std::move(settings);
+}
+
+ResultSnapshot CDataManager::GetResults() const
+{
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    return m_results;
+}
+
+CDataManager::Snapshot CDataManager::GetSnapshot() const
+{
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    return { m_setting_data, m_results };
+}
+
 std::wstring CDataManager::FormatItemText(bool is_proxy) const
 {
-    const std::wstring& s = is_proxy ? m_proxy_item_text : m_direct_item_text;
-    if (!s.empty()) return s;
-    return FormatItemTextHelper(is_proxy, is_proxy ? m_place_proxy : m_place_direct, is_proxy ? m_public_ip_proxy : m_public_ip_direct, is_proxy ? m_isp_proxy : m_isp_direct, m_latency_results, m_setting_data.display_format);
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    return is_proxy ? m_results.m_proxy_item_text : m_results.m_direct_item_text;
 }
 
 const wchar_t* CDataManager::GetFormattedItemText(bool is_proxy) const
 {
-    const std::wstring& s = is_proxy ? m_proxy_item_text : m_direct_item_text;
-    return s.empty() ? L"..." : s.c_str();
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    auto& reader = m_reader_texts[GetCurrentThreadId()];
+    auto& text = is_proxy ? reader.proxy : reader.direct;
+    const auto& current = is_proxy ? m_results.m_proxy_item_text : m_results.m_direct_item_text;
+    const auto& sample = is_proxy ? reader.sample_proxy : reader.sample_direct;
+    // Hold the last measured value until the host recalculates its layout.
+    // A result published between measure and paint must not exceed that width.
+    const auto& value = reader.taskbar && !sample.empty() ? sample : current;
+    text = value.empty() ? L"..." : value;
+    return text.c_str();
 }
 
-bool CDataManager::IsUpdating() const
+const wchar_t* CDataManager::GetItemValueSampleText(bool is_proxy) const
 {
-    return m_is_updating;
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    auto& reader = m_reader_texts[GetCurrentThreadId()];
+    auto& sample = is_proxy ? reader.sample_proxy : reader.sample_direct;
+    const auto& value = is_proxy ? m_results.m_proxy_item_text : m_results.m_direct_item_text;
+    sample = value.empty() ? L"..." : value;
+    return sample.c_str();
 }
 
-void CDataManager::_ThreadProc()
+void CDataManager::SetDrawContext(bool taskbar)
 {
-    UpdateIpInfoNow();
-    m_is_updating = false;
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    m_reader_texts[GetCurrentThreadId()].taskbar = taskbar;
 }
+
+const wchar_t* CDataManager::GetTooltipText() const
+{
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    auto& text = m_reader_texts[GetCurrentThreadId()].tooltip;
+    text = m_results.m_tooltip;
+    return text.c_str();
+}
+
+bool CDataManager::IsUpdating() const { return m_is_updating.load(); }
 
 void CDataManager::ReformatTaskbarTexts()
 {
     std::lock_guard<std::mutex> lock(m_swap_mutex);
-    m_direct_item_text = FormatItemTextHelper(false, m_place_direct, m_public_ip_direct, m_isp_direct, m_latency_results, m_setting_data.display_format);
-    m_proxy_item_text  = FormatItemTextHelper(true,  m_place_proxy,  m_public_ip_proxy,  m_isp_proxy,  m_latency_results, m_setting_data.display_format);
-    m_direct_item_text_bg = m_direct_item_text;
-    m_proxy_item_text_bg  = m_proxy_item_text;
+    auto format = [this](ResultSnapshot& result) {
+        result.m_direct_item_text = FormatItemTextHelper(false, result.m_place_direct,
+            result.m_public_ip_direct, result.m_isp_direct, result.m_country_code_direct, result.m_latency_results, m_setting_data.display_format);
+        result.m_proxy_item_text = FormatItemTextHelper(true, result.m_place_proxy,
+            result.m_public_ip_proxy, result.m_isp_proxy, result.m_country_code_proxy, result.m_latency_results, m_setting_data.display_format);
+    };
+    format(m_results);
+    if (m_has_new_data) format(m_pending);
 }
 
 int CDataManager::GetRefreshCountdownSec() const
 {
     if (m_is_updating) return 0;
-    if (m_last_ip_update_tick == 0) return 0;
-    ULONGLONG now = GetTickCount64();
-    ULONGLONG interval = (ULONGLONG)m_setting_data.refresh_interval_sec * 1000ULL;
-    if (now >= m_last_ip_update_tick + interval) return 0;
-    ULONGLONG remain = (m_last_ip_update_tick + interval) - now;
-    return (int)((remain + 999ULL) / 1000ULL);
+    const ULONGLONG last = m_last_ip_update_tick.load();
+    if (!last) return 0;
+    int seconds;
+    {
+        std::lock_guard<std::mutex> lock(m_swap_mutex);
+        seconds = m_setting_data.refresh_interval_sec;
+    }
+    const ULONGLONG now = GetTickCount64();
+    const ULONGLONG interval = static_cast<ULONGLONG>(seconds) * 1000ULL;
+    return now >= last + interval ? 0 : static_cast<int>((last + interval - now + 999) / 1000);
 }
 
 void CDataManager::UpdateIpInfoIfNeeded()
 {
-    m_ip_update_interval_ms = (unsigned int)m_setting_data.refresh_interval_sec * 1000u;
-    ULONGLONG now = GetTickCount64();
-    if (m_last_ip_update_tick != 0 && (now - m_last_ip_update_tick) < m_ip_update_interval_ms)
+    int seconds;
+    {
+        std::lock_guard<std::mutex> lock(m_swap_mutex);
+        seconds = m_setting_data.refresh_interval_sec;
+    }
+    const ULONGLONG last = m_last_ip_update_tick.load();
+    if (last && GetTickCount64() - last < static_cast<ULONGLONG>(seconds) * 1000ULL)
         return;
-
     ForceUpdateAsync();
 }
 
 void CDataManager::ForceUpdateAsync()
 {
-    if (m_is_updating) return;
-
-    LogInfo(L"ForceUpdateAsync: Spawning background update thread.");
-    m_is_updating = true;
-    std::thread([this]() {
-        try {
-            UpdateIpInfoNow();
-        } catch (...) {
-            LogInfo(L"ForceUpdateAsync: Unhandled exception caught in update thread.");
-        }
-        m_is_updating = false;
-    }).detach();
+    bool expected = false;
+    if (!m_is_updating.compare_exchange_strong(expected, true))
+        return;
+    try
+    {
+        if (ModuleTask::Start([this]() {
+            struct Reset {
+                std::atomic<bool>& flag;
+                ~Reset() { flag.store(false); }
+            } reset{ m_is_updating };
+            try { UpdateIpInfoNow(); }
+            catch (...) {
+                try { LogInfo(L"ForceUpdateAsync: Unhandled exception caught in update thread."); }
+                catch (...) {}
+            }
+        }))
+            return;
+    }
+    catch (...) {}
+    m_is_updating.store(false);
 }
 
 std::wstring CDataManager::GetLastUpdateStatusString() const
 {
-    const SYSTEMTIME& st = m_last_update_time; if (st.wYear == 0) return L"";
-    wchar_t tb[64]{}; swprintf_s(tb, L"%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-    std::wstring s = L"最后更新: "; s += tb; return s;
+    std::lock_guard<std::mutex> lock(m_swap_mutex);
+    const SYSTEMTIME& st = m_last_update_time;
+    if (st.wYear == 0) return L"";
+    wchar_t tb[64]{};
+    swprintf_s(tb, L"%04d-%02d-%02d %02d:%02d:%02d",
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+    return UiLanguage::Text(IDS_LAST_UPDATE_PREFIX).c_str() + std::wstring(tb);
 }
 
 void CDataManager::SwapBuffers()
 {
-    if (!m_has_new_data) return;
-
     std::lock_guard<std::mutex> lock(m_swap_mutex);
-
-    m_public_ip_direct = m_public_ip_direct_bg;
-    m_public_ip_proxy = m_public_ip_proxy_bg;
-    m_place_direct = m_place_direct_bg;
-    m_place_proxy = m_place_proxy_bg;
-    m_isp_direct = m_isp_direct_bg;
-    m_isp_proxy = m_isp_proxy_bg;
-    m_latency_results = m_latency_results_bg;
-    m_tooltip = m_tooltip_bg;
-    m_ip_region_display = m_ip_region_display_bg;
-    m_threat_direct = m_threat_direct_bg;
-    m_threat_proxy = m_threat_proxy_bg;
-    m_direct_item_text = m_direct_item_text_bg;
-    m_proxy_item_text = m_proxy_item_text_bg;
-
+    if (!m_has_new_data) return;
+    m_results = std::move(m_pending);
     m_has_new_data = false;
 }
-
 void CDataManager::RotateLogIfNeeded(const std::wstring& log_path)
 {
     WIN32_FILE_ATTRIBUTE_DATA fad{};
@@ -1151,9 +1155,13 @@ void CDataManager::RotateLogIfNeeded(const std::wstring& log_path)
 
 void CDataManager::LogInfo(const wchar_t* format, ...)
 {
-    if (m_config_path.empty()) return;
-
-    std::wstring log_path = m_config_path;
+    std::wstring log_path;
+    {
+        std::lock_guard<std::mutex> lock(m_swap_mutex);
+        log_path = m_config_path;
+    }
+    if (log_path.empty()) return;
+    std::lock_guard<std::mutex> log_lock(m_log_mutex);
     size_t dot_pos = log_path.find_last_of(L".");
     if (dot_pos != std::wstring::npos)
         log_path = log_path.substr(0, dot_pos);

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ModernUI.h"
+#include "UiLanguage.h"
 #include <dwmapi.h>
 #include <uxtheme.h>
 #pragma comment(lib, "gdiplus.lib")
@@ -49,7 +50,7 @@ void CGdiplusScope::DrawModernCard(Graphics& g, const RectF& rect, const wchar_t
 
     if (title && wcslen(title) > 0)
     {
-        FontFamily fontFamily(L"Microsoft YaHei UI");
+        FontFamily fontFamily(UiLanguage::Text(IDS_UI_FONT).c_str());
         Gdiplus::Font font(&fontFamily, 9.5f, FontStyleBold, UnitPoint);
         SolidBrush textBrush(Color(32, 32, 32));
 
@@ -73,7 +74,7 @@ void CModernButton::PreSubclassWindow()
 
     if (!m_font.GetSafeHandle())
     {
-        m_font.CreatePointFont(90, L"Microsoft YaHei UI");
+        m_font.CreatePointFont(90, UiLanguage::Text(IDS_UI_FONT).c_str());
     }
 }
 
@@ -171,7 +172,7 @@ void CModernButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
     CString text;
     GetWindowTextW(text);
 
-    FontFamily fontFamily(L"Microsoft YaHei UI");
+    FontFamily fontFamily(UiLanguage::Text(IDS_UI_FONT).c_str());
     Gdiplus::Font font(&fontFamily, 9.0f, m_isAccent ? FontStyleBold : FontStyleRegular, UnitPoint);
 
     StringFormat sf;
@@ -296,7 +297,7 @@ void CModernTabBar::OnPaint()
     if (!m_tabs.empty())
     {
         float tabW = (float)rc.Width() / (float)m_tabs.size();
-        FontFamily fontFamily(L"Microsoft YaHei UI");
+        FontFamily fontFamily(UiLanguage::Text(IDS_UI_FONT).c_str());
 
         for (int i = 0; i < (int)m_tabs.size(); ++i)
         {
@@ -356,6 +357,12 @@ CModernSubDlg::~CModernSubDlg()
 {
 }
 
+BOOL CModernSubDlg::Create(UINT templateId, CWnd* parent)
+{
+    const auto resource = UiLanguage::Dialog(templateId);
+    return resource && CDialog::CreateIndirect(resource, parent);
+}
+
 void CModernSubDlg::AddCard(int leftDlu, int topDlu, int rightDlu, int bottomDlu, const std::wstring& title)
 {
     m_cards.push_back({ leftDlu, topDlu, rightDlu, bottomDlu, title });
@@ -373,7 +380,7 @@ BOOL CModernSubDlg::OnInitDialog()
 
     if (!m_defaultUiFont.GetSafeHandle())
     {
-        m_defaultUiFont.CreatePointFont(90, L"Microsoft YaHei UI");
+        m_defaultUiFont.CreatePointFont(90, UiLanguage::Text(IDS_UI_FONT).c_str());
     }
 
     // 统一设置所有子控件字体为微软雅黑

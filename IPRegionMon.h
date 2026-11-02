@@ -1,6 +1,7 @@
 #pragma once
 #include "PluginInterface.h"
 #include "CustomDrawItem.h"
+#include <atomic>
 
 class CIPRegionMon : public ITMPlugin
 {
@@ -17,6 +18,7 @@ public:
     virtual OptionReturn ShowOptionsDialog(void* hParent) override;
     virtual void OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data) override;
     virtual const wchar_t* GetTooltipInfo() override;
+    virtual void OnInitialize(ITrafficMonitor* app) override;
 
 private:
     // 两个项目：直、代
@@ -24,6 +26,7 @@ private:
     CCustomDrawItem m_proxy_item{ true };
 
     static CIPRegionMon m_instance;
+    std::atomic<bool> m_initialized{ false }, m_config_ready{ false };
 };
 
 #ifdef __cplusplus

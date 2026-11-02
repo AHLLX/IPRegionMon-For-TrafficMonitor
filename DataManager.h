@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <map>
 #include <vector>
@@ -30,7 +30,8 @@ enum DisplayFormat
     DF_REGION_AND_IP = 1,      // 地区 + IP (例如: CN 上海 (1.2.3.4))
     DF_IP_ONLY = 2,            // 仅 IP (例如: 1.2.3.4)
     DF_REGION_AND_LATENCY = 3, // 地区 + 延迟 (例如: CN 上海 15ms)
-    DF_FULL = 4                // 完整 (例如: CN 上海 电信 (1.2.3.4))
+    DF_FULL = 4,               // 完整 (例如: CN 上海 电信 (1.2.3.4))
+    DF_COUNTRY_CODE = 5        // Country code only; full details stay in the tooltip.
 };
 
 struct SettingData
@@ -49,117 +50,98 @@ struct SettingData
     int refresh_interval_sec{ 300 }; // 默认 5 分钟
     // 是否在数值文本中显示IP（兼容旧版设置）
     bool show_ip{ true };
-    // 显示格式 (0: 仅地区, 1: 地区+IP, 2: 仅IP, 3: 地区+延迟, 4: 完整信息)
-    int display_format{ DF_REGION_AND_IP };
+    // Values 0-4 retain the existing formats; 5 selects country code only.
+    int display_format{ DF_COUNTRY_CODE };
     // 延迟目标（动态列表）
     std::vector<LatencyTarget> latency_targets;
 };
 
+struct LatencyResult
+{
+    std::wstring name, url;
+    double direct_ms{ -1 }, proxy_ms{ -1 };
+};
+
+struct ResultSnapshot
+{
+    std::wstring m_public_ip_direct, m_public_ip_proxy;
+    std::wstring m_place_direct, m_place_proxy;
+    std::wstring m_country_code_direct, m_country_code_proxy;
+    std::wstring m_isp_direct, m_isp_proxy;
+    IpThreatInfo m_threat_direct, m_threat_proxy;
+    std::vector<LatencyResult> m_latency_results;
+    std::wstring m_tooltip, m_ip_region_display;
+    std::wstring m_direct_item_text, m_proxy_item_text;
+};
+
 class CDataManager
 {
-    friend class CIPRegionMon;
-
-private:
+#ifdef IPREGIONMON_TESTING
+    friend struct ConcurrencyTestAccess;
+    friend struct LocalizationTestAccess;
+#endif
     CDataManager();
-    ~CDataManager();
-
+    ~CDataManager() = default;
 public:
+    using LatencyResult = ::LatencyResult;
+    struct Snapshot { SettingData settings; ResultSnapshot results; };
     static CDataManager& Instance();
 
+    SettingData GetSettings() const;
+    void SetSettings(SettingData settings);
+    ResultSnapshot GetResults() const;
+    Snapshot GetSnapshot() const;
     void LoadConfig(const std::wstring& config_dir);
     void SaveConfig() const;
-    const wchar_t* StringRes(UINT id);      //根据资源id获取一个字符串资源
+    const wchar_t* StringRes(UINT id);
 
-    void UpdateIpInfoNow();         // 立即获取信息并测速（并发异步执行，勿在UI主线程调用）
-    void UpdateIpInfoIfNeeded();    // 节流定时获取，适合在计时器中调用
-    void ForceUpdateAsync();        // 强制启动后台异步刷新（供UI按钮调用）
-    bool IsUpdating() const;        // 是否正在后台刷新
-    void _ThreadProc();             // 内部供线程调用
+    void UpdateIpInfoIfNeeded();
+    void ForceUpdateAsync();
+    bool IsUpdating() const;
+    void SwapBuffers();
+    void ReformatTaskbarTexts();
+    int GetRefreshCountdownSec() const;
     std::wstring GetLastUpdateStatusString() const;
-    void SwapBuffers();             // 将后台缓冲数据同步到主线程使用
-    void ReformatTaskbarTexts();    // 立即根据最新配置重新生成任务栏文本（免等待网络直接生效）
-    int  GetRefreshCountdownSec() const; // 获取距离下次自动刷新的倒计时秒数
-
-    // 格式化输出任务栏监控文本
     std::wstring FormatItemText(bool is_proxy) const;
+    // Valid until this thread calls the same getter again, exits, or DLL unloads.
     const wchar_t* GetFormattedItemText(bool is_proxy) const;
+    const wchar_t* GetItemValueSampleText(bool is_proxy) const;
+    void SetDrawContext(bool taskbar);
+    const wchar_t* GetTooltipText() const;
 
-    // 单独测试代理服务器连通性（同步执行，应在后台调用）
     bool TestProxyConnectivity(const std::wstring& proxy, std::wstring& out_message, double& out_ms);
-
-    // 单独测试指定 URL 的延迟（同步执行，ms）
     static bool MeasureLatencyMs(const std::wstring& url_or_host, const std::wstring& proxy, bool no_proxy, double& out_ms);
-
-    // 写入日志到 IPRegionMon_debug.log（带自动大小滚动控制）
     void LogInfo(const wchar_t* format, ...);
-
-public:
-    std::wstring m_cur_time;
-    std::wstring m_cur_date;
-    SYSTEMTIME m_system_time;
-    SettingData m_setting_data;
-
-    // IP 与地区显示
-    std::wstring m_public_ip;            // 历史字段（兼容）
-    std::wstring m_ip_region_display;    // 任务栏显示文本
-
-    // 双IP
-    std::wstring m_public_ip_direct;     // 直连（不经代理）公网IP
-    std::wstring m_public_ip_proxy;      // 代理出口公网IP
-    std::wstring m_place_direct;         // 直连的地区字符串（国家 省/州 城市）
-    std::wstring m_place_proxy;          // 代理的地区字符串
-    std::wstring m_isp_direct;           // 直连 ISP
-    std::wstring m_isp_proxy;            // 代理 ISP
-    IpThreatInfo m_threat_direct;        // 直连威胁/泄漏信息
-    IpThreatInfo m_threat_proxy;         // 代理威胁/泄漏信息
-
-    // 延迟（毫秒，<0 表示无效），按用户配置存放结果
-    struct LatencyResult { std::wstring name; std::wstring url; double direct_ms{-1}; double proxy_ms{-1}; };
-    std::vector<LatencyResult> m_latency_results;
-
-    // 鼠标提示（完整地区信息）
-    std::wstring m_tooltip;
-    std::wstring m_direct_item_text;
-    std::wstring m_proxy_item_text;
-
 private:
-    static CDataManager m_instance;
-    std::wstring m_config_path;
-    std::map<UINT, std::wstring> m_string_table;
-
-    // IP 更新节流
-    ULONGLONG m_last_ip_update_tick{0};
-    unsigned int m_ip_update_interval_ms{ 5 * 60 * 1000 }; // 默认5分钟
-
-    // 最后更新信息
-    bool m_last_source_domestic{ false };
-    SYSTEMTIME m_last_update_time{};      // 本地时间
-
-    // 执行一次请求，返回 place、ip、isp、threat
-    bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
-    bool FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
-    int m_direct_fail_count{ 0 };
-    int m_proxy_fail_count{ 0 };
-
-    // 日志滚动管理
+    void UpdateIpInfoNow();
+    bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, const std::wstring& proxy_address,
+        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp,
+        std::wstring& out_country_code, IpThreatInfo& out_threat);
+    bool FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, const std::wstring& proxy_address,
+        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp,
+        std::wstring& out_country_code, IpThreatInfo& out_threat);
     void RotateLogIfNeeded(const std::wstring& log_path);
 
-    // 后台缓存变量 (Double Buffering)
-    std::wstring m_public_ip_direct_bg;
-    std::wstring m_public_ip_proxy_bg;
-    std::wstring m_place_direct_bg;
-    std::wstring m_place_proxy_bg;
-    std::wstring m_isp_direct_bg;
-    std::wstring m_isp_proxy_bg;
-    IpThreatInfo m_threat_direct_bg;
-    IpThreatInfo m_threat_proxy_bg;
-    std::vector<LatencyResult> m_latency_results_bg;
-    std::wstring m_tooltip_bg;
-    std::wstring m_ip_region_display_bg;
-    std::wstring m_direct_item_text_bg;
-    std::wstring m_proxy_item_text_bg;
-
+    static CDataManager m_instance;
+    SettingData m_setting_data;
+    ResultSnapshot m_results, m_pending;
+    std::wstring m_config_path;
+    std::map<std::pair<LANGID, UINT>, std::wstring> m_string_table;
+    struct ReaderText {
+        std::wstring direct, proxy, tooltip, sample_direct, sample_proxy;
+        bool taskbar{ false };
+    };
+    // No non-trivial thread_local destructors may outlive an unloaded DLL.
+    mutable std::map<DWORD, ReaderText> m_reader_texts;
+    mutable std::mutex m_swap_mutex;
+    mutable std::mutex m_config_mutex;
+    std::mutex m_log_mutex;
+    bool m_has_new_data{ false };
     std::atomic<bool> m_is_updating{ false };
-    std::atomic<bool> m_has_new_data{ false };
-    std::mutex m_swap_mutex;
+    std::atomic<ULONGLONG> m_last_ip_update_tick{ 0 };
+    SYSTEMTIME m_last_update_time{};
+    int m_direct_fail_count{ 0 }, m_proxy_fail_count{ 0 };
+#ifdef IPREGIONMON_TESTING
+    std::atomic<bool> m_fail_update_for_test{ false };
+#endif
 };

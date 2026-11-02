@@ -2,6 +2,7 @@
 #include "IPRegionMon.h"
 #include "DataManager.h"
 #include "OptionsDlg.h"
+#include "UiLanguage.h"
 
 #include <thread>
 
@@ -32,11 +33,11 @@ void CIPRegionMon::DataRequired()
 const wchar_t* CIPRegionMon::GetInfo(PluginInfoIndex index)
 {
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    static CString str;
+
     switch (index)
     {
-    case TMI_NAME: str.LoadString(IDS_PLUGIN_NAME); return str.GetString();
-    case TMI_DESCRIPTION: str.LoadString(IDS_PLUGIN_DESCRIPTION); return str.GetString();
+    case TMI_NAME: return g_data.StringRes(IDS_PLUGIN_NAME);
+    case TMI_DESCRIPTION: return g_data.StringRes(IDS_PLUGIN_DESCRIPTION);
     case TMI_AUTHOR: return L"HiTech_NinJa";
     case TMI_COPYRIGHT: return L"Copyright (C) by HiTech_NinJa 2025-2026";
     case TMI_VERSION: return L"2.1.1";
@@ -66,9 +67,13 @@ void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
     switch (index)
     {
+    case ITMPlugin::EI_DRAW_TASKBAR_WND:
+        g_data.SetDrawContext(data && data[0] == L'1');
+        break;
     case ITMPlugin::EI_CONFIG_DIR:
         g_data.LoadConfig(std::wstring(data));
-        g_data.ForceUpdateAsync();
+        m_config_ready = true;
+        if (m_initialized) g_data.ForceUpdateAsync();
         break;
     default: break;
     }
@@ -77,7 +82,17 @@ void CIPRegionMon::OnExtenedInfo(ExtendedInfoIndex index, const wchar_t* data)
 const wchar_t* CIPRegionMon::GetTooltipInfo()
 {
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
-    return g_data.m_tooltip.c_str();
+    return g_data.GetTooltipText();
+}
+
+void CIPRegionMon::OnInitialize(ITrafficMonitor* app)
+{
+    AFX_MANAGE_STATE(AfxGetStaticModuleState());
+    UiLanguage::Initialize(app ? app->GetLanguageId() : UiLanguage::English);
+    // v7+ hosts send EI_CONFIG_DIR before OnInitialize. Bind the UI language
+    // before the first worker can format errors or tooltip text.
+    m_initialized = true;
+    if (m_config_ready) g_data.ForceUpdateAsync();
 }
 
 ITMPlugin* TMPluginGetInstance()
