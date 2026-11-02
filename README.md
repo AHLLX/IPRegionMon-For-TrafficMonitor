@@ -49,19 +49,22 @@
   - 常规设置面板状态行提供动态跳动的秒级倒计时，实时掌握下一次自动探测的时间点。
 - **表格列宽自动伸缩**：
   - 延迟测速列表应用资源管理器主题（Explorer），列宽按比例自适应卡片实际宽度，在高分屏 DPI 下无横向滚动条。
-- **多源高可用探测链与平滑降级（v2.1.1）**：
-  - 内置多级权威公共 IP 探测备用池（`ip-api.com`、`api.ip.sb`、`ipwho.is`、`ipinfo.io`），首选源异常时自动链式降级尝试，防止单点故障。
-  - 引入网络抖动平滑保留策略，当发生偶发性单次刷新失败时自动平滑复用历史健康缓存，避免任务栏频繁闪烁红字超时警告。
-  - 放宽 HTTPS 代理中间人证书容错与自动跟踪重定向，无缝兼容内网代理与抓包工具。
+- **多源探测与缓存**：
+  - 新设置的直连与代理 IP API 均默认为 `https://ipwho.is/`。备用源按顺序尝试 `https://ipwho.is/`、`https://api.ip.sb/geoip`、`https://ipinfo.io/json`，跳过与首选 URL 重复的项。
+  - 查询失败时，已有成功结果最多可保留三次失败刷新。保留的缓存不代表本次请求成功。
+- **HTTPS 与请求时限**：
+  - HTTPS 保留 Windows 的证书验证，并拒绝 HTTPS 到 HTTP 的重定向。通过 HTTP 代理发送的 HTTPS 请求使用相同验证，拦截代理提供的证书也必须受 Windows 信任。
+  - 显式配置的 HTTP 地址仍可使用，传输层不会将其自动升级为 HTTPS。需要加密时，请在设置中选择支持 HTTPS 的接口。
+  - 每个 GET 请求的网络预算为 4000 ms，每个 HEAD 测速请求为 1200 ms。备用源和测速目标顺序执行，整个刷新可能更长；取消请求及等待回调完成也可能增加耗时。参见[网络实现与测试说明](tests/network/README.md)。
 - **链路独立探测与代理分流支持**：
   - 支持分别获取直连与代理出口的 IP、国家/地区/城市、ISP 运营商。
-  - 代理出口默认使用国际化 API 接口（如 ip-api.com），避免由于分流规则导致出口 IP 识别错误。
+  - 直连请求不使用配置的代理；代理线路通过配置的 HTTP 代理发出。
 - **纯净度与网络类型识别**：
   - 识别网络类型（普通宽带、蜂窝移动网络、数据中心/机房机房等）及安全状态（纯净原生、代理、VPN、Tor、恶意黑名单）。
 - **动态延迟测速**：
   - 支持自由增删排测速目标，并可对选中目标进行单项即时测速。
-- **全异步无感刷新**：
-  - 网络探测全流程在后台线程池并发执行，采用双缓冲无锁更新，杜绝主程序 UI 冻结。
+- **后台刷新**：
+  - 刷新任务按顺序查询数据源和测速目标。网络操作在后台执行，完成的结果通过受同步保护的快照发布到界面。
 - **配置持久化安全**：
   - INI 文件保存，Unicode 与中文名称使用 `#u8:HEX` 十六进制编码，彻底规避本地代码页截断问题。
 - **零外部依赖**：
@@ -82,8 +85,8 @@
 在任务栏监控项上右键选择“选项...”打开设置面板：
 - **常规 / 网络**：
   - 设置任务栏显示格式与刷新间隔秒数。
-  - 勾选“启用代理服务器”并填入 HTTP/SOCKS 代理地址（例如 `127.0.0.1:7890`）。
-  - 点击“测试代理连通性”可在后台发起握手并回传耗时结果。
+  - 勾选“启用代理服务器”并填入 HTTP 代理地址（例如 `127.0.0.1:7890`）。
+  - 点击“测试代理连通性”可在后台发送 HTTP HEAD 请求并报告响应耗时；这不是 ICMP ping 延迟。
   - 点击“立即刷新”可立即应用当前所有改动并触发后台探测。
 - **延迟目标**：
   - 选中列表项可载入并更新名称或目标 URL/域名。
@@ -186,15 +189,19 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
   - Displays a real-time ticking countdown in the options dialog indicating when the next automatic refresh will occur.
 - **Adaptive Column Widths**:
   - The latency targets ListView dynamically proportions column widths according to card dimensions with no horizontal scrollbars.
-- **High Availability Multi-Source Fallback (v2.1.1)**:
-  - Features multi-tiered fallback endpoints (`ip-api.com`, `api.ip.sb`, `ipwho.is`, `ipinfo.io`) with smooth caching to prevent transient timeouts and taskbar display drops during network fluctuations.
+- **Fallback Providers and Cached Results**:
+  - New direct and proxy IP settings default to `https://ipwho.is/`. Fallbacks try `https://ipwho.is/`, `https://api.ip.sb/geoip` and `https://ipinfo.io/json` in order, skipping a URL already used as the preferred source.
+  - Previously successful results may be retained for up to three failed refreshes. Retained data does not mean the current request succeeded.
+- **HTTPS and Request Budgets**:
+  - HTTPS retains Windows certificate validation and rejects HTTPS-to-HTTP redirects. HTTPS requests through the HTTP proxy use the same validation, including certificates presented by an intercepting proxy; the plugin does not ignore certificate errors.
+  - Explicit HTTP endpoints remain supported. The transport does not automatically upgrade them to HTTPS; choose an HTTPS endpoint in settings when encryption is required.
+  - Each GET has a 4000 ms network budget; each HEAD latency request has 1200 ms. Sequential fallback providers and latency targets can make a full refresh take longer, and cancellation/callback cleanup can add time. See the [transport behavior and regression tests](tests/network/README.md).
 - **Dual Egress & Proxy Split-Routing Support**:
-  - Concurrently queries public IP, location, and ISP for both direct and proxy links.
-  - Uses internationalized endpoints for foreign queries to prevent split-routing misidentification.
+  - Retrieves public IP, location and ISP for direct and proxy links. Direct requests bypass the configured proxy; proxy requests use the configured HTTP proxy.
 - **Purity & Network Classification**:
   - Detects network types (Broadband, Cellular, Datacenter/Hosting) and security flags (Native, Proxy, VPN, Tor, Blacklist).
-- **Asynchronous Non-Blocking Engine**:
-  - Networking operations execute concurrently on worker threads using double buffering to ensure zero GUI freezes.
+- **Background Refreshes**:
+  - Each refresh queries providers and latency targets sequentially in a background task. Completed results are published to the UI as synchronized snapshots.
 - **Safe INI Configuration**:
   - Preserves Unicode and Chinese characters using `#u8:HEX` encoding to eliminate character corruption across different code pages.
 - **Zero Third-Party Dependencies**:
