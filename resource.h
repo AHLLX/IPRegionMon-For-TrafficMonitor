@@ -83,6 +83,7 @@
 #define IDS_TAB_NETWORK                      2070
 #define IDS_TAB_TARGETS                      2071
 #define IDS_TAB_STATUS                       2072
+#define IDS_FORMAT_COUNTRY_CODE              2073
 #define IDC_SHOW_SECOND_CHECK           1001
 #define IDC_SHOW_LABEL_CHECK            1002
 

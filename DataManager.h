@@ -30,7 +30,8 @@ enum DisplayFormat
     DF_REGION_AND_IP = 1,      // 地区 + IP (例如: CN 上海 (1.2.3.4))
     DF_IP_ONLY = 2,            // 仅 IP (例如: 1.2.3.4)
     DF_REGION_AND_LATENCY = 3, // 地区 + 延迟 (例如: CN 上海 15ms)
-    DF_FULL = 4                // 完整 (例如: CN 上海 电信 (1.2.3.4))
+    DF_FULL = 4,               // 完整 (例如: CN 上海 电信 (1.2.3.4))
+    DF_COUNTRY_CODE = 5        // Country code only; full details stay in the tooltip.
 };
 
 struct SettingData
@@ -49,8 +50,8 @@ struct SettingData
     int refresh_interval_sec{ 300 }; // 默认 5 分钟
     // 是否在数值文本中显示IP（兼容旧版设置）
     bool show_ip{ true };
-    // 显示格式 (0: 仅地区, 1: 地区+IP, 2: 仅IP, 3: 地区+延迟, 4: 完整信息)
-    int display_format{ DF_REGION_AND_IP };
+    // Values 0-4 retain the existing formats; 5 selects country code only.
+    int display_format{ DF_COUNTRY_CODE };
     // 延迟目标（动态列表）
     std::vector<LatencyTarget> latency_targets;
 };
@@ -65,6 +66,7 @@ struct ResultSnapshot
 {
     std::wstring m_public_ip_direct, m_public_ip_proxy;
     std::wstring m_place_direct, m_place_proxy;
+    std::wstring m_country_code_direct, m_country_code_proxy;
     std::wstring m_isp_direct, m_isp_proxy;
     IpThreatInfo m_threat_direct, m_threat_proxy;
     std::vector<LatencyResult> m_latency_results;
@@ -113,9 +115,11 @@ public:
 private:
     void UpdateIpInfoNow();
     bool FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, const std::wstring& proxy_address,
-        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
+        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp,
+        std::wstring& out_country_code, IpThreatInfo& out_threat);
     bool FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, const std::wstring& proxy_address,
-        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat);
+        std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp,
+        std::wstring& out_country_code, IpThreatInfo& out_threat);
     void RotateLogIfNeeded(const std::wstring& log_path);
 
     static CDataManager m_instance;

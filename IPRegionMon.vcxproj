@@ -259,6 +259,7 @@
     <ClInclude Include="include\PluginInterface.h" />
     <ClInclude Include="CustomDrawItem.h" />
     <ClInclude Include="DataManager.h" />
+    <ClInclude Include="CountryInfo.h" />
     <ClInclude Include="ModuleTask.h" />
     <ClInclude Include="BoundedHttp.h" />
     <ClInclude Include="UiLanguage.h" />

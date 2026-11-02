@@ -6,6 +6,7 @@
 #include "ModuleTask.h"
 #include "BoundedHttp.h"
 #include "UiLanguage.h"
+#include "CountryInfo.h"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -306,7 +307,7 @@ CDataManager::CDataManager()
     m_setting_data.use_proxy = false;
     m_setting_data.refresh_interval_sec = 300;
     m_setting_data.show_ip = true;
-    m_setting_data.display_format = DF_REGION_AND_IP;
+    m_setting_data.display_format = DF_COUNTRY_CODE;
 
     // 默认测试目标
     m_setting_data.latency_targets.push_back({ L"百度", L"https://www.baidu.com" });
@@ -347,9 +348,12 @@ void CDataManager::LoadConfig(const std::wstring& config_dir)
     settings.refresh_interval_sec = GetPrivateProfileIntW(L"ip", L"refresh_interval_sec", 300, config_path.c_str());
     settings.show_ip = GetPrivateProfileIntW(L"ip", L"show_ip", 1, config_path.c_str()) != 0;
 
-    // 读取显示格式（若无则根据旧版 show_ip 推断）
-    int def_format = settings.show_ip ? DF_REGION_AND_IP : DF_REGION_ONLY;
-    settings.display_format = GetPrivateProfileIntW(L"ip", L"display_format", def_format, config_path.c_str());
+    // Preserve old show_ip-only profiles as well as explicit display formats.
+    GetPrivateProfileStringW(L"ip", L"show_ip", L"", buff, _countof(buff), config_path.c_str());
+    const int default_format = buff[0] ? (settings.show_ip ? DF_REGION_AND_IP : DF_REGION_ONLY) : DF_COUNTRY_CODE;
+    settings.display_format = GetPrivateProfileIntW(L"ip", L"display_format", default_format, config_path.c_str());
+    if (settings.display_format < DF_REGION_ONLY || settings.display_format > DF_COUNTRY_CODE)
+        settings.display_format = DF_COUNTRY_CODE;
 
     GetPrivateProfileStringW(L"ip", L"api_url", L"", buff, _countof(buff), config_path.c_str());
     settings.api_url = buff;
@@ -460,8 +464,9 @@ const wchar_t* CDataManager::StringRes(UINT id)
     return it->second.c_str();
 }
 
-bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat)
+bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, std::wstring& out_country_code, IpThreatInfo& out_threat)
 {
+    out_country_code.clear();
     std::string resp;
     std::wstring proxy = use_proxy ? proxy_address : L"";
     bool no_proxy = !use_proxy;
@@ -517,6 +522,10 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, con
     if (country.empty()) country = GetJsonStringValue(w, L"country");
     if (country.empty()) country = GetJsonStringValue(w, L"country_name");
     if (country.empty()) country = GetJsonStringValue(w, L"c");
+    std::wstring countryCode = GetJsonStringValue(w, L"country_code");
+    if (countryCode.empty()) countryCode = GetJsonStringValue(w, L"countryCode");
+    const auto countryInfo = CountryInfo::Resolve(countryCode, country);
+    country = countryInfo.name;
     if (region.empty())  region  = GetJsonStringValue(w, L"regionName");
     if (region.empty())  region  = GetJsonStringValue(w, L"region");
     if (region.empty())  region  = GetJsonStringValue(w, L"province");
@@ -581,6 +590,7 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, con
     }
 
     out_ip = ip; out_isp = isp;
+    out_country_code = countryInfo.code;
     std::wstring place;
     if (!country.empty()) place += country;
     if (!region.empty() && region != country)  { if (!place.empty()) place += L" "; place += region; }
@@ -591,8 +601,9 @@ bool CDataManager::FetchIpInfoByUrl(const std::wstring& url, bool use_proxy, con
     return true;
 }
 
-bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, IpThreatInfo& out_threat)
+bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, bool use_proxy, const std::wstring& proxy_address, std::wstring& out_place, std::wstring& out_ip, std::wstring& out_isp, std::wstring& out_country_code, IpThreatInfo& out_threat)
 {
+    out_country_code.clear();
     std::vector<std::wstring> sources;
     if (!preferredUrl.empty())
     {
@@ -619,15 +630,16 @@ bool CDataManager::FetchIpInfoWithFallback(const std::wstring& preferredUrl, boo
     for (size_t i = 0; i < sources.size(); ++i)
     {
         const auto& url = sources[i];
-        std::wstring l_place, l_ip, l_isp;
+        std::wstring l_place, l_ip, l_isp, l_country_code;
         IpThreatInfo l_threat;
-        if (FetchIpInfoByUrl(url, use_proxy, proxy_address, l_place, l_ip, l_isp, l_threat))
+        if (FetchIpInfoByUrl(url, use_proxy, proxy_address, l_place, l_ip, l_isp, l_country_code, l_threat))
         {
             if (!l_ip.empty())
             {
                 out_place = l_place;
                 out_ip = l_ip;
                 out_isp = l_isp;
+                out_country_code = l_country_code;
                 out_threat = l_threat;
                 LogInfo(L"FetchIpInfo: [%ls] Succeeded via source #%d (%ls): IP=%ls, Place=%ls",
                     use_proxy ? L"Proxy" : L"Direct", (int)i + 1, url.c_str(), out_ip.c_str(), out_place.c_str());
@@ -674,7 +686,7 @@ static void AppendWrappedList(std::wstring& out, const std::vector<std::pair<std
     }
 }
 
-static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::vector<CDataManager::LatencyResult>& lats, int fmt);
+static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt);
 void CDataManager::UpdateIpInfoNow()
 {
 #ifdef IPREGIONMON_TESTING
@@ -686,9 +698,9 @@ void CDataManager::UpdateIpInfoNow()
     ULONGLONG start_tick = GetTickCount64();
     LogInfo(L"UpdateIpInfoNow: Background update thread started.");
 
-    std::wstring l_public_ip_direct, l_place_direct, l_isp_direct;
+    std::wstring l_public_ip_direct, l_place_direct, l_isp_direct, l_country_code_direct;
     IpThreatInfo l_threat_direct;
-    std::wstring l_public_ip_proxy, l_place_proxy, l_isp_proxy;
+    std::wstring l_public_ip_proxy, l_place_proxy, l_isp_proxy, l_country_code_proxy;
     IpThreatInfo l_threat_proxy;
 
     bool ok_direct = false;
@@ -707,14 +719,14 @@ void CDataManager::UpdateIpInfoNow()
 
     // 1. 直连探测（高可用多源轮询）
     LogInfo(L"UpdateIpInfoNow: Fetching direct IP...");
-    ok_direct = FetchIpInfoWithFallback(settings.api_domestic_url, false, proxy_addr, l_place_direct, l_public_ip_direct, l_isp_direct, l_threat_direct);
+    ok_direct = FetchIpInfoWithFallback(settings.api_domestic_url, false, proxy_addr, l_place_direct, l_public_ip_direct, l_isp_direct, l_country_code_direct, l_threat_direct);
     LogInfo(L"UpdateIpInfoNow: Direct query done (ok=%d).", ok_direct ? 1 : 0);
 
     // 2. 代理探测（高可用多源轮询）
     if (use_proxy)
     {
         LogInfo(L"UpdateIpInfoNow: Fetching proxy IP...");
-        ok_proxy = FetchIpInfoWithFallback(settings.api_foreign_url, true, proxy_addr, l_place_proxy, l_public_ip_proxy, l_isp_proxy, l_threat_proxy);
+        ok_proxy = FetchIpInfoWithFallback(settings.api_foreign_url, true, proxy_addr, l_place_proxy, l_public_ip_proxy, l_isp_proxy, l_country_code_proxy, l_threat_proxy);
         LogInfo(L"UpdateIpInfoNow: Proxy query done (ok=%d).", ok_proxy ? 1 : 0);
     }
 
@@ -756,6 +768,7 @@ void CDataManager::UpdateIpInfoNow()
             LogInfo(L"UpdateIpInfoNow: Direct query failed (%d/3), retaining previous IP: %ls", m_direct_fail_count, previous.m_public_ip_direct.c_str());
             l_public_ip_direct = previous.m_public_ip_direct;
             l_place_direct     = previous.m_place_direct;
+            l_country_code_direct = previous.m_country_code_direct;
             l_isp_direct       = previous.m_isp_direct;
             l_threat_direct    = previous.m_threat_direct;
             ok_direct = true;
@@ -783,6 +796,7 @@ void CDataManager::UpdateIpInfoNow()
                 LogInfo(L"UpdateIpInfoNow: Proxy query failed (%d/3), retaining previous IP: %ls", m_proxy_fail_count, previous.m_public_ip_proxy.c_str());
                 l_public_ip_proxy = previous.m_public_ip_proxy;
                 l_place_proxy     = previous.m_place_proxy;
+                l_country_code_proxy = previous.m_country_code_proxy;
                 l_isp_proxy       = previous.m_isp_proxy;
                 l_threat_proxy    = previous.m_threat_proxy;
                 ok_proxy = true;
@@ -863,10 +877,12 @@ void CDataManager::UpdateIpInfoNow()
     ResultSnapshot next;
     next.m_public_ip_direct = std::move(l_public_ip_direct);
     next.m_place_direct = std::move(l_place_direct);
+    next.m_country_code_direct = std::move(l_country_code_direct);
     next.m_isp_direct = std::move(l_isp_direct);
     next.m_threat_direct = std::move(l_threat_direct);
     next.m_public_ip_proxy = std::move(l_public_ip_proxy);
     next.m_place_proxy = std::move(l_place_proxy);
+    next.m_country_code_proxy = std::move(l_country_code_proxy);
     next.m_isp_proxy = std::move(l_isp_proxy);
     next.m_threat_proxy = std::move(l_threat_proxy);
     next.m_latency_results = std::move(l_latency);
@@ -876,9 +892,9 @@ void CDataManager::UpdateIpInfoNow()
         std::lock_guard<std::mutex> lock(m_swap_mutex);
         const int format = m_setting_data.display_format;
         next.m_direct_item_text = FormatItemTextHelper(false, next.m_place_direct,
-            next.m_public_ip_direct, next.m_isp_direct, next.m_latency_results, format);
+            next.m_public_ip_direct, next.m_isp_direct, next.m_country_code_direct, next.m_latency_results, format);
         next.m_proxy_item_text = FormatItemTextHelper(true, next.m_place_proxy,
-            next.m_public_ip_proxy, next.m_isp_proxy, next.m_latency_results, format);
+            next.m_public_ip_proxy, next.m_isp_proxy, next.m_country_code_proxy, next.m_latency_results, format);
         m_pending = std::move(next);
         m_has_new_data = true;
     }
@@ -911,10 +927,13 @@ static std::wstring CompactDisplayText(const std::wstring& value, size_t limit)
     return value.substr(0, cut) + L"\u2026";
 }
 
-static std::wstring FormatItemTextRaw(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
+static std::wstring FormatItemTextRaw(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
 {
     switch (fmt)
     {
+    case DF_COUNTRY_CODE:
+        return country_code.empty() ? L"--" : country_code;
+
     case DF_REGION_ONLY:
         if (!place.empty()) return place;
         return ip.empty() ? L"..." : ip;
@@ -959,9 +978,9 @@ static std::wstring FormatItemTextRaw(bool is_proxy, const std::wstring& place, 
     }
 }
 
-static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
+static std::wstring FormatItemTextHelper(bool is_proxy, const std::wstring& place, const std::wstring& ip, const std::wstring& isp, const std::wstring& country_code, const std::vector<CDataManager::LatencyResult>& lats, int fmt)
 {
-    return CompactDisplayText(FormatItemTextRaw(is_proxy, place, ip, isp, lats, fmt), 48);
+    return CompactDisplayText(FormatItemTextRaw(is_proxy, place, ip, isp, country_code, lats, fmt), 48);
 }
 
 SettingData CDataManager::GetSettings() const
@@ -1039,9 +1058,9 @@ void CDataManager::ReformatTaskbarTexts()
     std::lock_guard<std::mutex> lock(m_swap_mutex);
     auto format = [this](ResultSnapshot& result) {
         result.m_direct_item_text = FormatItemTextHelper(false, result.m_place_direct,
-            result.m_public_ip_direct, result.m_isp_direct, result.m_latency_results, m_setting_data.display_format);
+            result.m_public_ip_direct, result.m_isp_direct, result.m_country_code_direct, result.m_latency_results, m_setting_data.display_format);
         result.m_proxy_item_text = FormatItemTextHelper(true, result.m_place_proxy,
-            result.m_public_ip_proxy, result.m_isp_proxy, result.m_latency_results, m_setting_data.display_format);
+            result.m_public_ip_proxy, result.m_isp_proxy, result.m_country_code_proxy, result.m_latency_results, m_setting_data.display_format);
     };
     format(m_results);
     if (m_has_new_data) format(m_pending);

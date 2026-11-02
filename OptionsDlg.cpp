@@ -52,10 +52,11 @@ BOOL CTabProxyApiDlg::OnInitDialog()
     m_cmbDisplayFormat.AddString(UiLanguage::Text(IDS_FORMAT_IP).c_str());
     m_cmbDisplayFormat.AddString(UiLanguage::Text(IDS_FORMAT_REGION_LATENCY).c_str());
     m_cmbDisplayFormat.AddString(UiLanguage::Text(IDS_FORMAT_FULL).c_str());
+    m_cmbDisplayFormat.AddString(UiLanguage::Text(IDS_FORMAT_COUNTRY_CODE).c_str());
 
     const SettingData d = g_data.GetSettings();
     int fmt = d.display_format;
-    if (fmt < 0 || fmt > 4) fmt = 1;
+    if (fmt < 0 || fmt > DF_COUNTRY_CODE) fmt = DF_COUNTRY_CODE;
     m_cmbDisplayFormat.SetCurSel(fmt);
 
     m_chkUseProxy.SetCheck(d.use_proxy ? BST_CHECKED : BST_UNCHECKED);
@@ -93,7 +94,7 @@ void CTabProxyApiDlg::OnBnClickedUseProxy()
 void CTabProxyApiDlg::OnCbnSelchangeDisplayFormat()
 {
     int fmt = m_cmbDisplayFormat.GetCurSel();
-    if (fmt >= 0 && fmt <= 4)
+    if (fmt >= 0 && fmt <= DF_COUNTRY_CODE)
     {
         auto settings = g_data.GetSettings();
         settings.display_format = fmt;
