@@ -21,6 +21,7 @@ class Server
 public:
     std::wstring base;
     std::atomic<int> received{ 0 };
+    std::atomic<int> countryCase{ 0 };
     Server()
     {
         WSADATA data{};
@@ -43,8 +44,18 @@ public:
                 const int read = recv(client, request, sizeof(request) - 1, 0);
                 if (read > 0) ++received;
                 const bool get = read > 0 && std::string(request, read).find("GET ") == 0;
+                const char* countries[]{
+                    "\"country_code\":\"CN\",\"country\":\"\\u4e2d\\u56fd \\u4e0a\\u6d77\"",
+                    "\"country_code\":\"gb\",\"country\":\"United Kingdom\",\"region\":\"England\",\"city\":\"Worksop\"",
+                    "\"countryCode\":\"GB\",\"country\":\"United Kingdom\",\"regionName\":\"England\",\"city\":\"Worksop\"",
+                    "\"country\":\"United Kingdom\",\"region\":\"England\",\"city\":\"Worksop\"",
+                    "\"country\":\"GB\",\"region\":\"England\",\"city\":\"Worksop\"",
+                    "\"country\":\"Atlantis\",\"city\":\"Unknown city\"",
+                    "\"country\":\"\\u4e2d\\u56fd\",\"city\":\"\\u4e0a\\u6d77\""
+                };
                 const std::string body = get ?
-                    "{\"status\":\"success\",\"query\":\"198.51.100.1\",\"country\":\"\\u4e2d\\u56fd \\u4e0a\\u6d77\",\"isp\":\"Test ISP\"}" : "";
+                    std::string("{\"status\":\"success\",\"query\":\"198.51.100.1\",") +
+                    countries[countryCase.load()] + ",\"isp\":\"Test ISP\"}" : "";
                 const std::string response = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: " +
                     std::to_string(body.size()) + "\r\n\r\n" + body;
                 send(client, response.c_str(), static_cast<int>(response.size()), 0);
@@ -93,6 +104,9 @@ int wmain(int argc, wchar_t** argv)
         const auto configure = reinterpret_cast<Configure>(GetProcAddress(module, "TestConfigure"));
         const auto update = reinterpret_cast<Update>(GetProcAddress(module, "TestUpdate"));
         const auto busy = reinterpret_cast<Busy>(GetProcAddress(module, "TestBusy"));
+        const auto countryMode = reinterpret_cast<Update>(GetProcAddress(module, "TestUseCountryFormat"));
+        const auto countryNames = reinterpret_cast<Width>(GetProcAddress(module, "TestCountryNames"));
+        Check(countryMode && countryNames && countryNames(), "country name/code resolution");
         const auto swap = reinterpret_cast<Update>(GetProcAddress(module, "TestSwap"));
         const auto width = reinterpret_cast<Width>(GetProcAddress(module, "TestTaskbarWidths"));
         Check(instance && smoke && configure && update && busy && swap && width, "exports");
@@ -128,7 +142,21 @@ int wmain(int argc, wchar_t** argv)
             Check(tooltip.find(L"直: ") == 0 && tooltip.find(L"最后更新:") != std::wstring::npos,
                 "first configured update used the wrong UI language");
             Check(tooltip.find(L"中国 上海") != std::wstring::npos, "startup geography lost");
+            Check(std::wstring(plugin->GetItem(0)->GetItemValueText()) == L"CN",
+                "new profile did not default to country code");
+            for (const wchar_t* savedFormat : { L"1", L"5" })
+            {
+                write(L"display_format", savedFormat);
+                plugin->OnExtenedInfo(ITMPlugin::EI_CONFIG_DIR, directory);
+                for (int attempt = 0; attempt < 500 && busy(); ++attempt) Sleep(10);
+                Check(!busy(), "saved-format reload timeout");
+                swap();
+                const std::wstring value = plugin->GetItem(0)->GetItemValueText();
+                Check(savedFormat[0] == L'5' ? value == L"CN" :
+                    value.find(L"198.51.100.1") != std::wstring::npos, "saved display format was replaced");
+            }
             std::printf("PASS: EI_CONFIG_DIR before OnInitialize, first configured worker uses host language\n");
+            std::puts("PASS: default country format; legacy and country formats survive INI reload");
             FreeLibrary(module);
             return 0;
         }
@@ -148,6 +176,7 @@ int wmain(int argc, wchar_t** argv)
             Check(retained == before, "resource pointer invalidated by initialization");
             Check(!busy(), "OnInitialize without config started a request");
             Check(plugin->GetItem(0)->GetItemLableText() == std::wstring(chinese ? L"直:" : L"Direct:"), "item label language");
+            Check(plugin->GetItem(1)->GetItemLableText() == std::wstring(chinese ? L"代:" : L"Proxy:"), "proxy item label language");
             configure(server.base.c_str(), FALSE);
             update();
             for (int index = 0; index < 500 && busy(); ++index) Sleep(10);
@@ -162,6 +191,31 @@ int wmain(int argc, wchar_t** argv)
             Check(GetThreadUILanguage() == threadLanguage, "host thread language changed");
             std::printf("PASS: host language %04x, native templates, metadata, retained pointer, thread locale\n", language);
         }
+        host.language = 0x0409;
+        plugin->OnInitialize(&host);
+        configure(server.base.c_str(), FALSE);
+        countryMode();
+        for (int index = 1; index <= 6; ++index)
+        {
+            server.countryCase = index;
+            update();
+            for (int attempt = 0; attempt < 500 && busy(); ++attempt) Sleep(10);
+            Check(!busy(), "country update timeout");
+            swap();
+            plugin->OnExtenedInfo(ITMPlugin::EI_DRAW_TASKBAR_WND, L"1");
+            auto* item = plugin->GetItem(0);
+            const std::wstring sample = item->GetItemValueSampleText();
+            const std::wstring expected = index == 5 ? L"--" : index == 6 ? L"CN" : L"GB";
+            Check(sample == expected && item->GetItemValueText() == expected,
+                "taskbar country code differs from provider/name fallback");
+            const std::wstring tooltip = plugin->GetTooltipInfo();
+            Check(tooltip.find(L"198.51.100.1") != std::wstring::npos, "country view lost tooltip IP");
+            const std::wstring location = index == 5 ? L"Atlantis Unknown city" :
+                index == 6 ? L"中国 上海" : L"United Kingdom England Worksop";
+            Check(tooltip.find(location) != std::wstring::npos, "country view truncated full tooltip location");
+            Check(smoke(FALSE), "country format was not preserved by settings controls");
+        }
+        std::puts("PASS: country-code fields, legacy country names, code-only provider, unknown country; full tooltip; settings roundtrip");
         FreeLibrary(module);
         return 0;
     }

@@ -2,6 +2,7 @@
 #include "../../OptionsDlg.h"
 #include "../../UiLanguage.h"
 #include "../../IPRegionMon.h"
+#include "../../CountryInfo.h"
 #include <vector>
 #include <cstdio>
 
@@ -13,6 +14,8 @@ struct LocalizationTestAccess
             std::lock_guard<std::mutex> lock(g_data.m_swap_mutex);
             g_data.m_setting_data.display_format = format;
             g_data.m_results.m_place_direct = g_data.m_results.m_place_proxy = place;
+            g_data.m_results.m_country_code_direct = L"GB";
+            g_data.m_results.m_country_code_proxy = L"US";
             g_data.m_results.m_public_ip_direct = g_data.m_results.m_public_ip_proxy =
                 L"2001:db8:1234:5678:90ab:cdef:1234:5678";
             g_data.m_results.m_isp_direct = g_data.m_results.m_isp_proxy = std::wstring(120, L'W');
@@ -48,7 +51,7 @@ struct LocalizationTestAccess
                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, face);
             if (!dc || !font) { passed = false; if (font) DeleteObject(font); continue; }
             const HGDIOBJ old = SelectObject(dc, font);
-            for (int format = 0; format <= 4; ++format)
+            for (int format = 0; format <= DF_COUNTRY_CODE; ++format)
             for (const auto& place : places)
             {
                 Seed(format, place);
@@ -75,6 +78,8 @@ struct LocalizationTestAccess
                             value.substr(value.size() - suffix.size()) == suffix &&
                             value.find(L'\x2026') != std::wstring::npos && value.size() < 40;
                     }
+                    if (format == DF_COUNTRY_CODE)
+                        passed = passed && value == (route ? L"US" : L"GB");
                 }
                 passed = passed && g_data.GetResults().m_place_direct == place;
             }
@@ -149,6 +154,7 @@ struct LocalizationTestAccess
         dialog.m_pageProxyApi.GetData(roundtrip);
         dialog.m_pageLatency.GetData(roundtrip);
         const auto original = g_data.GetSettings();
+        passed = passed && roundtrip.display_format == original.display_format;
         passed = passed && roundtrip.latency_targets.size() == original.latency_targets.size();
         for (size_t index = 0; index < original.latency_targets.size(); ++index)
             passed = passed && roundtrip.latency_targets[index].name == original.latency_targets[index].name &&
@@ -156,6 +162,25 @@ struct LocalizationTestAccess
         return passed;
     }
 };
+
+extern "C" __declspec(dllexport) void TestUseCountryFormat()
+{
+    auto settings = g_data.GetSettings();
+    settings.display_format = DF_COUNTRY_CODE;
+    g_data.SetSettings(std::move(settings));
+    g_data.ReformatTaskbarTexts();
+}
+
+extern "C" __declspec(dllexport) BOOL TestCountryNames()
+{
+    const auto british = CountryInfo::Resolve(L"", L"United Kingdom");
+    const auto chinese = CountryInfo::Resolve(L"", L"中国");
+    const auto russian = CountryInfo::Resolve(L"ru", L"Russia");
+    const auto codeOnly = CountryInfo::Resolve(L"", L"GB");
+    const auto unknown = CountryInfo::Resolve(L"1?", L"Unknown provider country");
+    return british.code == L"GB" && chinese.code == L"CN" && russian.code == L"RU" &&
+        codeOnly.code == L"GB" && codeOnly.name == L"United Kingdom" && unknown.code.empty();
+}
 
 extern "C" __declspec(dllexport) BOOL TestTaskbarWidths()
 {
