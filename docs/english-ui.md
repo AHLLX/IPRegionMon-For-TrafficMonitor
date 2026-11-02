@@ -67,6 +67,44 @@ Use /p:PostBuildEventUseInBuild=false when building a test artifact: the origina
 post-build event deploys to a TrafficMonitor plugins directory. Set separate
 OutDir and IntDir for each test run. No working installation is required.
 
+### Visible dialog DPI checks (2026-11-02)
+
+The production x64 DLL was loaded into a standalone Win32 host using the same
+system-DPI awareness declared by TrafficMonitor 1.86. Its real options dialog
+was inspected on physical monitors with Windows scaling enabled. The host used
+loopback responses with test IP addresses and deliberately long geography.
+
+| Scale and screen | EN | ZH | Coverage |
+| --- | --- | --- | --- |
+| 150%, 3840x2160 | Checked | Checked | All three pages; empty-target validation message |
+| 100%, 1680x1050 | Checked | Checked | All three pages after moving from the 150% monitor |
+| 200%, 3840x2160 | Checked | Checked | General / Network page; complete outer dialog fits |
+| 200%, 1680x1050 | Known limitation | Known limitation | All three pages switch; bottom dialog buttons are clipped |
+
+The 150% to 100% transfer was checked in both languages; the reverse transfer
+was checked in English. With the 150% primary monitor, GetDpiForWindow remained
+144 during transfer and Windows scaled the system-aware window. At the 200%
+stage both monitors were set to 200% and a fresh host process used DPI 192.
+A mixed 150% / 200% configuration and the reverse Chinese transfer were not
+checked.
+
+On the 1680x1050 screen at 200%, the work area was 954 pixels high. The English
+dialog measured 1456x1151 and the Chinese dialog 1566x1117, so their fixed layout
+did not fit vertically. This small-screen limitation is accepted for the current
+scope; no dialog resizing, scrolling or font changes are included. It must not
+be reported as a successful fit or a corrected DPI issue.
+
+Long Region values are clipped in the single-line status cards at all three
+tested scales. The complete location and IP remain in the scrollable diagnostic
+report. This does not change the compact taskbar format or its full tooltip.
+
+These observations cover the plugin dialog in the standalone host. They do not
+complete end-to-end taskbar and tooltip DPI checks in TrafficMonitor itself.
+The installed elevated host was not accessible to the window automation tool.
+Earlier user checks confirmed the compact panel and English labels after
+resetting saved TrafficMonitor label overrides. The automated GDI/tooltip checks
+and those confirmations remain separate from the visible-dialog DPI session.
+
 ## Pull request scope
 
 The localization branch starts at fix/development-baseline, commit b06453b.
