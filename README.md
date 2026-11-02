@@ -14,7 +14,7 @@
   - 直：直连出口 IP / 地区
   - 代：代理出口 IP / 地区（可选）
 - 支持版本：TrafficMonitor 插件 API v2+（兼容更高版本）
-- 依赖要求：零外部第三方库依赖（仅使用 Windows 原生 WinHTTP、GDI+、DWM 及 MFC）
+- 依赖要求：使用 Windows 原生 API；x64 发布 DLL 动态链接 Microsoft Visual C++ / MFC 运行库。
 
 ## 界面预览
 
@@ -68,8 +68,8 @@
   - 刷新任务按顺序查询数据源和测速目标。网络操作在后台执行，完成的结果通过受同步保护的快照发布到界面。
 - **配置持久化安全**：
   - INI 文件保存，Unicode 与中文名称使用 `#u8:HEX` 十六进制编码，彻底规避本地代码页截断问题。
-- **零外部依赖**：
-  - 完全由 Windows 系统内置 API 构建，不引入额外的第三方 DLL 动态链接库。
+- **Windows 原生网络与绘图**：
+  - 使用 WinHTTP、GDI+ 等 Windows API；x64 发布包仍需要 Microsoft Visual C++ / MFC 运行库。
 
 ---
 
@@ -78,6 +78,8 @@
 1. 在 [Releases](https://github.com/AHLLX/IPRegionMon-For-TrafficMonitor/releases) 页面下载对应架构的发布包（通常推荐 x64）。
 2. 将压缩包内的 `IPRegionMon.dll` 解压至 TrafficMonitor 根目录下的 `plugins` 文件夹中。
 3. 启动或重启 TrafficMonitor，在“插件管理”中勾选启用并配置要显示的项目。
+
+运行 x64 发布包需要兼容的 [Microsoft Visual C++ v14 Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/)。DLL 依赖 `mfc140u.dll`、`MSVCP140.dll` 和 `VCRUNTIME140*.dll`；缺少运行库时请安装或修复 Microsoft 官方运行库包。
 
 ---
 
@@ -158,7 +160,7 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
   - Direct: Direct exit IP / Location
   - Proxy: Proxy exit IP / Location (Optional)
 - Supported Versions: TrafficMonitor Plugin API v2+
-- Dependencies: Zero third-party dependencies (built exclusively on WinHTTP, GDI+, DWM, and MFC)
+- Dependencies: Windows native APIs and the dynamically linked Microsoft Visual C++ / MFC runtime for the x64 release DLL.
 
 ## Preview
 
@@ -206,8 +208,8 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
   - Each refresh queries providers and latency targets sequentially in a background task. Completed results are published to the UI as synchronized snapshots.
 - **Safe INI Configuration**:
   - Preserves Unicode and Chinese characters using `#u8:HEX` encoding to eliminate character corruption across different code pages.
-- **Zero Third-Party Dependencies**:
-  - Fully self-contained implementation with no external runtime DLL requirements.
+- **Windows Native Networking and Drawing**:
+  - Uses Windows APIs such as WinHTTP and GDI+; the x64 release DLL also requires the Microsoft Visual C++ / MFC runtime.
 
 ---
 
@@ -216,6 +218,8 @@ A modern IP region and network latency monitoring plugin designed for TrafficMon
 1. Download the latest release from the [Releases](https://github.com/AHLLX/IPRegionMon-For-TrafficMonitor/releases) page (x64 recommended).
 2. Extract `IPRegionMon.dll` into the `plugins` folder inside the TrafficMonitor directory.
 3. Restart TrafficMonitor, enable the plugin in "Plugin Management", and select your desired items.
+
+The x64 release requires a compatible [Microsoft Visual C++ v14 Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/). The DLL imports `mfc140u.dll`, `MSVCP140.dll` and `VCRUNTIME140*.dll`; install or repair Microsoft's runtime package if those dependencies are missing.
 
 ---
 
