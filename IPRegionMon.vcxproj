@@ -259,6 +259,9 @@
     <ClInclude Include="include\PluginInterface.h" />
     <ClInclude Include="CustomDrawItem.h" />
     <ClInclude Include="DataManager.h" />
+    <ClInclude Include="ModuleTask.h" />
+    <ClInclude Include="BoundedHttp.h" />
+    <ClInclude Include="AsyncTextResult.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="IPRegionMon.h" />
     <ClInclude Include="OptionsDlg.h" />
@@ -286,6 +289,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(IPRegionMonConcurrencyTests)'=='true'">
+    <ClCompile>
+      <PreprocessorDefinitions>IPREGIONMON_TESTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(IPRegionMonConcurrencyTests)'=='true'">
+    <ClCompile Include="tests\concurrency\plugin_fixture.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

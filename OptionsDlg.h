@@ -3,17 +3,17 @@
 #include "resource.h"
 #include "DataManager.h"
 #include "ModernUI.h"
+#include "AsyncTextResult.h"
 #include <vector>
-
-// 异步回调自定义消息
-#define WM_TEST_PROXY_DONE   (WM_USER + 110)
-#define WM_TEST_LATENCY_DONE (WM_USER + 111)
 
 // ────────────────────────────────────────────────────────────────────────
 // Tab 0: 常规 / 网络 & 代理 设置 (现代圆角卡片)
 // ────────────────────────────────────────────────────────────────────────
 class CTabProxyApiDlg : public CModernSubDlg
 {
+#ifdef IPREGIONMON_TESTING
+    friend struct ConcurrencyTestAccess;
+#endif
     DECLARE_DYNAMIC(CTabProxyApiDlg)
 public:
     explicit CTabProxyApiDlg(CWnd* pParent = nullptr);
@@ -32,11 +32,13 @@ protected:
     afx_msg void OnBnClickedTestProxy();
     afx_msg void OnCbnSelchangeDisplayFormat();
     afx_msg void OnTimer(UINT_PTR nIDEvent);
-    afx_msg LRESULT OnTestProxyDone(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnDestroy();
+    void OnTestProxyDone(const std::wstring& message);
     DECLARE_MESSAGE_MAP()
 
 private:
     void UpdateProxyEditState();
+    std::shared_ptr<AsyncTextResult> m_testResult;
 
     CComboBox     m_cmbDisplayFormat;
     CButton       m_chkUseProxy;
@@ -55,6 +57,9 @@ private:
 // ────────────────────────────────────────────────────────────────────────
 class CTabLatencyDlg : public CModernSubDlg
 {
+#ifdef IPREGIONMON_TESTING
+    friend struct ConcurrencyTestAccess;
+#endif
     DECLARE_DYNAMIC(CTabLatencyDlg)
 public:
     explicit CTabLatencyDlg(CWnd* pParent = nullptr);
@@ -77,12 +82,15 @@ protected:
     afx_msg void OnNMClickList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnNMDblclkList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnSize(UINT nType, int cx, int cy);
-    afx_msg LRESULT OnTestLatencyDone(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnTimer(UINT_PTR nIDEvent);
+    afx_msg void OnDestroy();
+    void OnTestLatencyDone(const std::wstring& message);
     DECLARE_MESSAGE_MAP()
 
 private:
     void RefreshList();
     void LoadSelectedToEdit();
+    std::shared_ptr<AsyncTextResult> m_testResult;
 
     CListCtrl     m_listCtrl;
     CEdit         m_edtName;

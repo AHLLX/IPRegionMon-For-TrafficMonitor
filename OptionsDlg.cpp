@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "OptionsDlg.h"
-#include <thread>
+
 #include <uxtheme.h>
 
 // ====================================================================
@@ -32,7 +32,7 @@ BEGIN_MESSAGE_MAP(CTabProxyApiDlg, CModernSubDlg)
     ON_BN_CLICKED(IDC_TEST_PROXY_BUTTON,  &CTabProxyApiDlg::OnBnClickedTestProxy)
     ON_CBN_SELCHANGE(IDC_DISPLAY_FORMAT_COMBO, &CTabProxyApiDlg::OnCbnSelchangeDisplayFormat)
     ON_WM_TIMER()
-    ON_MESSAGE(WM_TEST_PROXY_DONE,        &CTabProxyApiDlg::OnTestProxyDone)
+    ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 BOOL CTabProxyApiDlg::OnInitDialog()
@@ -52,7 +52,7 @@ BOOL CTabProxyApiDlg::OnInitDialog()
     m_cmbDisplayFormat.AddString(L"地区 + 延迟 (例如: CN 上海 15ms)");
     m_cmbDisplayFormat.AddString(L"完整信息 (例如: CN 上海 电信 (1.2.3.4))");
 
-    const SettingData& d = g_data.m_setting_data;
+    const SettingData d = g_data.GetSettings();
     int fmt = d.display_format;
     if (fmt < 0 || fmt > 4) fmt = 1;
     m_cmbDisplayFormat.SetCurSel(fmt);
@@ -94,7 +94,9 @@ void CTabProxyApiDlg::OnCbnSelchangeDisplayFormat()
     int fmt = m_cmbDisplayFormat.GetCurSel();
     if (fmt >= 0 && fmt <= 4)
     {
-        g_data.m_setting_data.display_format = fmt;
+        auto settings = g_data.GetSettings();
+        settings.display_format = fmt;
+        g_data.SetSettings(std::move(settings));
         g_data.ReformatTaskbarTexts();
         g_data.SaveConfig();
     }
@@ -103,7 +105,9 @@ void CTabProxyApiDlg::OnCbnSelchangeDisplayFormat()
 void CTabProxyApiDlg::OnBnClickedRefreshNow()
 {
     // 1. 立即同步当前界面所有配置到全局数据并重绘任务栏
-    GetData(g_data.m_setting_data);
+    auto settings = g_data.GetSettings();
+    GetData(settings);
+    g_data.SetSettings(std::move(settings));
     g_data.SaveConfig();
     g_data.ReformatTaskbarTexts();
 
@@ -119,48 +123,56 @@ void CTabProxyApiDlg::OnBnClickedTestProxy()
     CString proxy;
     m_edtProxy.GetWindowTextW(proxy);
     std::wstring proxy_str = proxy.GetString();
-
     m_btnTestProxy.EnableWindow(FALSE);
     m_stcTestProxyStatus.SetWindowTextW(L"正在测试代理服务器连通性…");
-
-    HWND hWnd = m_hWnd;
-    std::thread([hWnd, proxy_str]() {
-        std::wstring msg;
-        double ms = -1.0;
-        bool ok = g_data.TestProxyConnectivity(proxy_str, msg, ms);
-
-        if (::IsWindow(hWnd))
-        {
-            wchar_t res[256];
-            if (ok)
-            {
-                swprintf_s(res, L"✓ 代理连接正常！握手耗时: %.0f ms", ms);
-            }
-            else
-            {
-                swprintf_s(res, L"✗ 代理连接失败: %s", msg.c_str());
-            }
-
-            wchar_t* pRes = _wcsdup(res);
-            ::PostMessageW(hWnd, WM_TEST_PROXY_DONE, (WPARAM)pRes, 0);
-        }
-    }).detach();
-}
-
-LRESULT CTabProxyApiDlg::OnTestProxyDone(WPARAM wParam, LPARAM /*lParam*/)
-{
-    wchar_t* pRes = (wchar_t*)wParam;
-    if (pRes)
+    try
     {
-        m_stcTestProxyStatus.SetWindowTextW(pRes);
-        free(pRes);
+        m_testResult = AsyncTextResult::Start([proxy_str]() {
+            std::wstring msg;
+            double ms = -1.0;
+            bool ok = g_data.TestProxyConnectivity(proxy_str, msg, ms);
+            wchar_t res[256]{};
+            if (ok)
+                swprintf_s(res, L"✓ 代理连接正常！握手耗时: %.0f ms", ms);
+            else
+                swprintf_s(res, L"✗ 代理连接失败: %s", msg.c_str());
+            return std::wstring(res);
+        });
     }
-    m_btnTestProxy.EnableWindow(TRUE);
-    return 0;
+    catch (...) { m_testResult.reset(); }
+    if (!m_testResult || !SetTimer(3, 100, nullptr))
+    {
+        m_testResult.reset();
+        OnTestProxyDone(L"✗ 代理连接失败: 无法启动后台任务");
+    }
 }
 
+void CTabProxyApiDlg::OnTestProxyDone(const std::wstring& message)
+{
+    m_stcTestProxyStatus.SetWindowTextW(message.empty()
+        ? L"✗ 代理连接失败: 后台请求失败" : message.c_str());
+    m_btnTestProxy.EnableWindow(TRUE);
+}
+
+void CTabProxyApiDlg::OnDestroy()
+{
+    KillTimer(3);
+    m_testResult.reset();
+    CModernSubDlg::OnDestroy();
+}
 void CTabProxyApiDlg::OnTimer(UINT_PTR nIDEvent)
 {
+    if (nIDEvent == 3)
+    {
+        std::wstring message;
+        if (m_testResult && m_testResult->Take(message))
+        {
+            KillTimer(3);
+            m_testResult.reset();
+            OnTestProxyDone(message);
+        }
+        return;
+    }
     if (nIDEvent == 1)
     {
         // 探测完成检测
@@ -247,7 +259,8 @@ BEGIN_MESSAGE_MAP(CTabLatencyDlg, CModernSubDlg)
     ON_NOTIFY(NM_CLICK,   IDC_LATENCY_LIST, &CTabLatencyDlg::OnNMClickList)
     ON_NOTIFY(NM_DBLCLK,  IDC_LATENCY_LIST, &CTabLatencyDlg::OnNMDblclkList)
     ON_WM_SIZE()
-    ON_MESSAGE(WM_TEST_LATENCY_DONE,   &CTabLatencyDlg::OnTestLatencyDone)
+    ON_WM_TIMER()
+    ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 BOOL CTabLatencyDlg::OnInitDialog()
@@ -270,7 +283,7 @@ BOOL CTabLatencyDlg::OnInitDialog()
     m_listCtrl.InsertColumn(2, L"直连延迟", LVCFMT_RIGHT, 85);
     m_listCtrl.InsertColumn(3, L"代理延迟", LVCFMT_RIGHT, 85);
 
-    m_targets = g_data.m_setting_data.latency_targets;
+    m_targets = g_data.GetSettings().latency_targets;
     RefreshList();
     AdjustColumnWidths();
 
@@ -314,6 +327,7 @@ void CTabLatencyDlg::OnSize(UINT nType, int cx, int cy)
 
 void CTabLatencyDlg::RefreshList()
 {
+    const auto results = g_data.GetResults();
     m_listCtrl.DeleteAllItems();
     for (size_t i = 0; i < m_targets.size(); ++i)
     {
@@ -323,7 +337,7 @@ void CTabLatencyDlg::RefreshList()
 
         // 读当前的实时测速结果
         double dMs = -1.0, pMs = -1.0;
-        for (const auto& r : g_data.m_latency_results)
+        for (const auto& r : results.m_latency_results)
         {
             if (r.url == t.url || r.name == t.name)
             {
@@ -462,45 +476,60 @@ void CTabLatencyDlg::OnBnClickedTest()
     if (idx < 0 || idx >= (int)m_targets.size()) return;
 
     std::wstring url = m_targets[idx].url;
-    std::wstring proxy = g_data.m_setting_data.use_proxy ? g_data.m_setting_data.proxy_address : L"";
+    const auto settings = g_data.GetSettings();
+    std::wstring proxy = settings.use_proxy ? settings.proxy_address : L"";
 
     m_btnTest.EnableWindow(FALSE);
-    HWND hWnd = m_hWnd;
-
-    std::thread([hWnd, url, proxy, idx]() {
-        double dMs = -1.0;
-        CDataManager::MeasureLatencyMs(url, L"", true, dMs);
-
-        double pMs = -1.0;
-        if (!proxy.empty())
-        {
-            CDataManager::MeasureLatencyMs(url, proxy, false, pMs);
-        }
-
-        if (::IsWindow(hWnd))
-        {
-            wchar_t res[256];
+    try
+    {
+        m_testResult = AsyncTextResult::Start([url, proxy]() {
+            double dMs = -1.0, pMs = -1.0;
+            CDataManager::MeasureLatencyMs(url, L"", true, dMs);
+            if (!proxy.empty())
+                CDataManager::MeasureLatencyMs(url, proxy, false, pMs);
+            wchar_t res[256]{};
             swprintf_s(res, L"测速完成: 直连 %.0f ms | 代理 %.0f ms", dMs, pMs);
-            wchar_t* pRes = _wcsdup(res);
-            ::PostMessageW(hWnd, WM_TEST_LATENCY_DONE, (WPARAM)pRes, 0);
-        }
-    }).detach();
+            return std::wstring(res);
+        });
+    }
+    catch (...) { m_testResult.reset(); }
+    if (!m_testResult || !SetTimer(3, 100, nullptr))
+    {
+        m_testResult.reset();
+        OnTestLatencyDone(L"无法启动后台任务");
+    }
 }
 
-LRESULT CTabLatencyDlg::OnTestLatencyDone(WPARAM wParam, LPARAM /*lParam*/)
+void CTabLatencyDlg::OnTimer(UINT_PTR nIDEvent)
 {
-    wchar_t* pRes = (wchar_t*)wParam;
-    if (pRes)
+    if (nIDEvent == 3)
     {
-        AfxMessageBox(pRes, MB_ICONINFORMATION);
-        free(pRes);
+        std::wstring message;
+        if (m_testResult && m_testResult->Take(message))
+        {
+            KillTimer(3);
+            m_testResult.reset();
+            OnTestLatencyDone(message);
+        }
+        return;
     }
+    CModernSubDlg::OnTimer(nIDEvent);
+}
+
+void CTabLatencyDlg::OnDestroy()
+{
+    KillTimer(3);
+    m_testResult.reset();
+    CModernSubDlg::OnDestroy();
+}
+
+void CTabLatencyDlg::OnTestLatencyDone(const std::wstring& message)
+{
     m_btnTest.EnableWindow(TRUE);
+    AfxMessageBox(message.empty() ? L"后台请求失败" : message.c_str(), MB_ICONINFORMATION);
     RefreshList();
     AdjustColumnWidths();
-    return 0;
 }
-
 void CTabLatencyDlg::GetData(SettingData& out) const
 {
     out.latency_targets = m_targets;
@@ -557,15 +586,16 @@ BOOL CTabStatusDlg::OnInitDialog()
 
 void CTabStatusDlg::UpdateStatusView()
 {
-    const auto& dIp = g_data.m_public_ip_direct;
-    const auto& dPlace = g_data.m_place_direct;
-    const auto& dIsp = g_data.m_isp_direct;
-    const auto& dThreat = g_data.m_threat_direct;
+    const auto snapshot = g_data.GetSnapshot();
+    const auto& dIp = snapshot.results.m_public_ip_direct;
+    const auto& dPlace = snapshot.results.m_place_direct;
+    const auto& dIsp = snapshot.results.m_isp_direct;
+    const auto& dThreat = snapshot.results.m_threat_direct;
 
-    const auto& pIp = g_data.m_public_ip_proxy;
-    const auto& pPlace = g_data.m_place_proxy;
-    const auto& pIsp = g_data.m_isp_proxy;
-    const auto& pThreat = g_data.m_threat_proxy;
+    const auto& pIp = snapshot.results.m_public_ip_proxy;
+    const auto& pPlace = snapshot.results.m_place_proxy;
+    const auto& pIsp = snapshot.results.m_isp_proxy;
+    const auto& pThreat = snapshot.results.m_threat_proxy;
 
     // 1. 直连卡片文本
     m_stcDirectIp.SetWindowTextW((L"公网 IP: " + (dIp.empty() ? L"-" : dIp)).c_str());
@@ -584,7 +614,7 @@ void CTabStatusDlg::UpdateStatusView()
     m_stcDirectThreat.SetWindowTextW(dt.c_str());
 
     // 2. 代理卡片文本
-    if (g_data.m_setting_data.use_proxy)
+    if (snapshot.settings.use_proxy)
     {
         m_stcProxyIp.SetWindowTextW((L"出口 IP: " + (pIp.empty() ? L"-" : pIp)).c_str());
         m_stcProxyPlace.SetWindowTextW((L"地区: " + (pPlace.empty() ? L"-" : pPlace)).c_str());
@@ -610,7 +640,7 @@ void CTabStatusDlg::UpdateStatusView()
     }
 
     // 3. 完整诊断报告展示框
-    std::wstring report = g_data.m_tooltip;
+    std::wstring report = snapshot.results.m_tooltip;
     std::wstring crlfReport;
     crlfReport.reserve(report.size() + 64);
     for (size_t i = 0; i < report.size(); ++i)
@@ -650,43 +680,46 @@ void CTabStatusDlg::CopyToClipboard(const std::wstring& text)
 
 void CTabStatusDlg::OnBnClickedCopyDirect()
 {
-    const auto& ip = g_data.m_public_ip_direct;
+    const auto snapshot = g_data.GetSnapshot();
+    const auto& ip = snapshot.results.m_public_ip_direct;
     if (ip.empty())
     {
         AfxMessageBox(L"当前尚未获取到直连 IP！", MB_ICONWARNING);
         return;
     }
     std::wstring s = L"直连 IP: " + ip;
-    if (!g_data.m_place_direct.empty())
-        s += L" [" + g_data.m_place_direct + L"]";
-    if (!g_data.m_isp_direct.empty())
-        s += L" " + g_data.m_isp_direct;
+    if (!snapshot.results.m_place_direct.empty())
+        s += L" [" + snapshot.results.m_place_direct + L"]";
+    if (!snapshot.results.m_isp_direct.empty())
+        s += L" " + snapshot.results.m_isp_direct;
     CopyToClipboard(s);
 }
 
 void CTabStatusDlg::OnBnClickedCopyProxy()
 {
-    const auto& ip = g_data.m_public_ip_proxy;
+    const auto snapshot = g_data.GetSnapshot();
+    const auto& ip = snapshot.results.m_public_ip_proxy;
     if (ip.empty())
     {
         AfxMessageBox(L"当前尚未获取到代理出口 IP！", MB_ICONWARNING);
         return;
     }
     std::wstring s = L"代理 IP: " + ip;
-    if (!g_data.m_place_proxy.empty())
-        s += L" [" + g_data.m_place_proxy + L"]";
-    if (!g_data.m_isp_proxy.empty())
-        s += L" " + g_data.m_isp_proxy;
+    if (!snapshot.results.m_place_proxy.empty())
+        s += L" [" + snapshot.results.m_place_proxy + L"]";
+    if (!snapshot.results.m_isp_proxy.empty())
+        s += L" " + snapshot.results.m_isp_proxy;
     CopyToClipboard(s);
 }
 
 void CTabStatusDlg::OnBnClickedCopyAll()
 {
+    const auto snapshot = g_data.GetSnapshot();
     CString s;
     m_edtStatus.GetWindowTextW(s);
     if (s.IsEmpty())
     {
-        s = g_data.m_tooltip.c_str();
+        s = snapshot.results.m_tooltip.c_str();
     }
     CopyToClipboard(s.GetString());
 }
@@ -810,9 +843,10 @@ void COptionsDlg::SwitchToPage(int idx)
 
 void COptionsDlg::OnOK()
 {
-    SettingData& d = g_data.m_setting_data;
+    SettingData d = g_data.GetSettings();
     m_pageProxyApi.GetData(d);
     m_pageLatency.GetData(d);
+    g_data.SetSettings(std::move(d));
 
     g_data.SaveConfig();
     g_data.ReformatTaskbarTexts();

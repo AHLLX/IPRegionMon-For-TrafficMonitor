@@ -141,14 +141,14 @@ public:
     virtual void* OnItemInfo(ItemInfoType, void* para1, void* para2) { return 0; }
 
     /**
-     * @brief 是否在在任务栏中显示此项目的资源占用图
-     * @return 1：显示，0：不显示
+     * @brief   是否在在任务栏中显示此项目的资源占用图
+     * @return  1：显示，0：不显示
      */
     virtual int IsDrawResourceUsageGraph() const { return 0; }
 
     /**
-     * @brief 获取资源占用图的值。当IsDrawResourceUsageGraphType返回值不为0时有效
-     * @return float 资源占用图的值，范围为0.0~1.0。
+     * @brief   获取资源占用图的值。当IsDrawResourceUsageGraphType返回值不为0时有效
+     * @return  float 资源占用图的值，范围为0.0~1.0。
      */
     virtual float GetResourceUsageGraphValue() const { return 0.0; }
 
@@ -160,9 +160,15 @@ public:
      * @param   int w
      * @param   int h
      * @param   bool dark_mode 深色模式为true，浅色模式为false
-     * @return  bool 未实现返回false，如果实现了此函数并使用了pDrawer绘图，则应返回true
+     * @return  bool
      */
     virtual bool DrawItemEx(IPluginDrawer* pDrawer, int x, int y, int w, int h, bool dark_mode) { return false; }
+
+    /**
+     * @brief   是否在任务中独占双行
+     * @return  1：是，0：否
+     */
+    virtual int IsDoubleLineExclusive() const { return 0; }
 };
 
 class ITrafficMonitor;
@@ -434,6 +440,23 @@ public:
      * @return 
      */
     virtual const wchar_t* GetStringRes(const wchar_t* key, const wchar_t* section) = 0;
+
+    /**
+     * @brief   获取主窗口的句柄
+     * @return  
+     */
+    virtual void* GetMainWindowHwnd() = 0;
+
+    /**
+     * @brief   获取任务栏窗口的句柄。不显示任务栏窗口时，返回值为空
+     * @return  
+     */
+    virtual void* GetTaskbarWindowHwnd() = 0;
+
+    /**
+     * API Version
+     *      1       新增GetMainWindowHwnd、GetTaskbarWindowHwnd函数
+     */
 };
 
 
@@ -441,6 +464,12 @@ public:
 class IPluginDrawer
 {
 public:
+    /**
+     * @brief   获取此接口的版本。
+     * @return  int
+     */
+    virtual int GetAPIVersion() = 0;
+
     // 拉伸模式
     enum StretchMode
     {
@@ -501,14 +530,12 @@ public:
      * @param   width 边框的线宽
      * @param   dot_line 是否为虚线
      * @param   alpha 不透明度，0~255
+     * @param   radius 圆角半径，如果为0则为直角矩形
      */
-    virtual void DrawRectOutLine(int x, int y, int w, int h, unsigned long color, int width = 1, bool dot_line = false, unsigned char alpha = 255) = 0;
+    virtual void DrawRectOutLine(int x, int y, int w, int h, unsigned long color, int width = 1, bool dot_line = false, unsigned char alpha = 255, int radius = 0) = 0;
 
     /**
      * @brief   绘制一个位图
-     * @@detail    
-     *  注意：当stretch_mode设置为StretchMode::FILL（填充）时，会设置绘图剪辑区域，如果之后需要绘制其他图形，
-     *  需要重新设置绘图剪辑区域，否则图片外的区域会无法绘制
      * @param   hbitmap 位图的句柄
      * @param   x 矩形区域的左侧坐标
      * @param   y 矩形区域的顶部坐标
@@ -536,6 +563,23 @@ public:
      * @param[out]  h 字符串的高度
      */
     virtual void GetTextExtent(const wchar_t* lpszString, int& w, int& h) = 0;
+
+    /**
+     * @brief   绘制一个线段
+     * @param   x1 第1个点的x坐标
+     * @param   y1 第1个点的y坐标
+     * @param   x2 第2个点的x坐标
+     * @param   y2 第2个点的7坐标
+     * @param   color 颜色
+     * @param   alpha 不透明度
+     */
+    virtual void DrawLine(int x1, int y1, int x2, int y2, unsigned long color, int width = 1, bool dot_line = false, unsigned char alpha = 255) = 0;
+
+    /**
+     * @brief   获取GDI绘图的句柄
+     * @return  HDC格式句柄
+     */
+    virtual void* GetHDC() = 0;
 };
 
 
@@ -567,6 +611,6 @@ public:
 * -------------------------------------------------------------------------
 *     7       | 新增 ITMPlugin::OnInitialize 函数
 * -------------------------------------------------------------------------
-*     8       | 新增 IPluginItem::DrawItemEx 函数
+*     8       | 新增 IPluginItem::DrawItemEx, IPluginItem::IsDoubleLineExclusive 函数
 * -------------------------------------------------------------------------
 */
